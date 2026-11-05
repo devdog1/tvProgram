@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Program, Category, Community, SourceCode, ShareOption
+from .models import Program, Category, Community, SourceCode, ShareOption, Series, CustomField, EventHook, SMTPSettings
 
 
 @admin.register(Program)
@@ -21,6 +21,22 @@ class CommunityAdmin(admin.ModelAdmin):
     list_display = ("name", "is_enabled", "created_at")
     list_filter = ("is_enabled",)
     search_fields = ("name",)
+
+
+@admin.register(SMTPSettings)
+class SMTPSettingsAdmin(admin.ModelAdmin):
+    list_display = ("host", "port", "from_address", "envelope_from", "use_tls", "use_ssl", "is_active", "updated_at")
+    list_filter = ("is_active", "use_tls", "use_ssl")
+    search_fields = ("host", "from_address", "envelope_from")
+    fieldsets = (
+        ("Relay Server Connection", {
+            "fields": ("host", "port", "username", "password", "use_tls", "use_ssl", "timeout", "is_active")
+        }),
+        ("Sender & Postfix Envelope Options", {
+            "fields": ("from_address", "envelope_from"),
+            "description": "Set the From header address and Postfix envelope from (Return-Path). If envelope from is empty, from address is used."
+        }),
+    )
 
 
 @admin.register(SourceCode)

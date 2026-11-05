@@ -1,0 +1,136 @@
+{% extends "programs/base.html" %}
+
+{% block title %}SMTP Relay & Postfix Settings - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h2 class="h4 mb-0 fw-bold"><i class="bi bi-envelope-at me-2 text-primary"></i>SMTP Relay & Mail Envelope Settings</h2>
+        <p class="text-muted small mb-0">Configure outbound SMTP relay server, sender From address, and Postfix envelope sender (Return-Path).</p>
+      </div>
+      <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Dashboard
+      </a>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header bg-dark text-white fw-semibold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-sliders me-2"></i>Mail Transport Configuration</span>
+        {% if settings_obj.is_active %}
+          <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+        {% else %}
+          <span class="badge bg-secondary">Disabled</span>
+        {% endif %}
+      </div>
+      <div class="card-body p-4">
+        <form method="post">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger mb-4">
+              {{ form.non_field_errors }}
+            </div>
+          {% endif %}
+
+          <h5 class="fw-bold text-primary mb-3"><i class="bi bi-hdd-network me-2"></i>SMTP Relay Host & Port</h5>
+          <div class="row g-3 mb-4">
+            <div class="col-md-8">
+              <label for="{{ form.host.id_for_label }}" class="form-label fw-semibold">SMTP Host:</label>
+              {{ form.host }}
+              <div class="form-text">Hostname or IP address of the SMTP relay server (e.g. localhost, postfix server, or external relay).</div>
+              {% if form.host.errors %}<div class="text-danger small">{{ form.host.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label for="{{ form.port.id_for_label }}" class="form-label fw-semibold">Port:</label>
+              {{ form.port }}
+              <div class="form-text">Typically 25 (Postfix/local), 587 (Submission), or 465 (SSL).</div>
+              {% if form.port.errors %}<div class="text-danger small">{{ form.port.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label for="{{ form.username.id_for_label }}" class="form-label fw-semibold">SMTP Username:</label>
+              {{ form.username }}
+              <div class="form-text">Leave blank if SMTP relay allows unauthenticated local relay.</div>
+              {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label for="{{ form.password.id_for_label }}" class="form-label fw-semibold">SMTP Password:</label>
+              {{ form.password }}
+              <div class="form-text">Password for authentication if required by relay.</div>
+              {% if form.password.errors %}<div class="text-danger small">{{ form.password.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <div class="form-check mt-2">
+                {{ form.use_tls }}
+                <label class="form-check-label fw-semibold" for="{{ form.use_tls.id_for_label }}">
+                  Use STARTTLS
+                </label>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check mt-2">
+                {{ form.use_ssl }}
+                <label class="form-check-label fw-semibold" for="{{ form.use_ssl.id_for_label }}">
+                  Use Implicit SSL
+                </label>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label for="{{ form.timeout.id_for_label }}" class="form-label fw-semibold">Timeout (seconds):</label>
+              {{ form.timeout }}
+              {% if form.timeout.errors %}<div class="text-danger small">{{ form.timeout.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <hr class="my-4">
+
+          <h5 class="fw-bold text-primary mb-3"><i class="bi bi-envelope-paper me-2"></i>Sender & Postfix Envelope Addresses</h5>
+
+          <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Postfix Envelope From:</strong> Specifies the sender passed to the Postfix SMTP envelope (<code>MAIL FROM:&lt;address&gt;</code>) and set as the <code>Return-Path</code> header for bounce handling. If left blank, it automatically defaults to the From address.
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label for="{{ form.from_address.id_for_label }}" class="form-label fw-semibold">From Address:</label>
+              {{ form.from_address }}
+              <div class="form-text">Address shown in the <code>From:</code> email header.</div>
+              {% if form.from_address.errors %}<div class="text-danger small">{{ form.from_address.errors }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label for="{{ form.envelope_from.id_for_label }}" class="form-label fw-semibold">Postfix Envelope From (Return-Path):</label>
+              {{ form.envelope_from }}
+              <div class="form-text">Envelope sender for SMTP mail delivery (Return-Path). If left blank, uses From address.</div>
+              {% if form.envelope_from.errors %}<div class="text-danger small">{{ form.envelope_from.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">
+                Enable SMTP Relay for system event notifications
+              </label>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-save me-1"></i> Save SMTP Settings
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

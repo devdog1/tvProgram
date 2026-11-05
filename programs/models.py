@@ -426,3 +426,48 @@ class EventHook(models.Model):
         import re
         raw = re.split(r"[,\n\r]+", self.recipient_emails)
         return [r.strip() for r in raw if r.strip()]
+
+
+class SMTPSettings(models.Model):
+    """
+    SMTP relay and envelope sender configuration for outbound mail notifications.
+    """
+    host = models.CharField(max_length=255, default="localhost", help_text="SMTP relay host (e.g. postfix server or smtp.relay.com)")
+    port = models.PositiveIntegerField(default=25, help_text="SMTP port (e.g. 25, 465, 587)")
+    username = models.CharField(max_length=255, blank=True, help_text="SMTP username (if authentication required)")
+    password = models.CharField(max_length=255, blank=True, help_text="SMTP password (if authentication required)")
+    use_tls = models.BooleanField(default=False, verbose_name="Use STARTTLS")
+    use_ssl = models.BooleanField(default=False, verbose_name="Use SSL/TLS")
+    timeout = models.PositiveIntegerField(default=10, help_text="SMTP connection timeout in seconds")
+
+    from_address = models.EmailField(
+        default="wcgtv@wcgtv.local",
+        help_text="Default From address visible in the From: header",
+    )
+    envelope_from = models.EmailField(
+        blank=True,
+        help_text="Postfix envelope from / Return-Path address (leave blank to use the From address)",
+    )
+    is_active = models.BooleanField(default=True, help_text="Whether this SMTP relay configuration is active")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "SMTP Relay Setting"
+        verbose_name_plural = "SMTP Relay Settings"
+
+    def __str__(self):
+        return f"SMTP Relay ({self.host}:{self.port}) - From: {self.from_address}"
+
+    def get_envelope_from(self):
+        """Returns the envelope from (Return-Path) address, defaulting to from_address if blank."""
+        return self.envelope_from.strip() if self.envelope_from else self.from_address
+
+    @classmethod
+    def get_settings(cls):
+        """Returns active settings or a default instance if none found."""
+        obj = cls.objects.filter(is_active=True).first()
+        if not obj:
+            obj = cls.objects.first()
+        if not obj:
+            obj = cls()
+        return obj

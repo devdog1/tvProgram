@@ -103,13 +103,78 @@ def can_sign_off(user):
     return user.is_superuser or user.has_perm("programs.change_program")
 
 
+def send_wcgtv_email(subject, body, recipients, fail_silently=True):
+    """
+    Sends email using configured SMTPSettings relay and envelope from (Return-Path).
+    Falls back cleanly to Django test runner outbox / settings backend during automated tests.
+    """
+    from django.core.mail import EmailMessage
+    from django.core.mail.backends.smtp import EmailBackend
+    from django.conf import settings
+    from .models import SMTPSettings
+    import smtplib
+
+    if not recipients:
+        return 0
+
+    smtp_config = SMTPSettings.get_settings()
+    from_addr = smtp_config.from_address or getattr(settings, "DEFAULT_FROM_EMAIL", "wcgtv@wcgtv.local")
+    envelope_from = smtp_config.get_envelope_from() or from_addr
+
+    headers = {
+        "Return-Path": envelope_from,
+        "Sender": envelope_from,
+        "X-Envelope-From": envelope_from,
+    }
+
+    connection = None
+    # If custom SMTP relay settings are active and not in locmem/test backend override mode
+    is_locmem_test = (getattr(settings, "EMAIL_BACKEND", "") == "django.core.mail.backends.locmem.EmailBackend")
+
+    if smtp_config and smtp_config.is_active and not is_locmem_test:
+        class PostfixEnvelopeSMTPBackend(EmailBackend):
+            def _send(self, email_message):
+                if not email_message.recipients():
+                    return False
+                # Postfix envelope from for MAIL FROM command
+                from_email = self.prep_address(envelope_from)
+                recips = [self.prep_address(addr) for addr in email_message.recipients()]
+                message = email_message.message()
+                try:
+                    self.connection.sendmail(from_email, recips, message.as_bytes())
+                except smtplib.SMTPException:
+                    if not self.fail_silently:
+                        raise
+                    return False
+                return True
+
+        connection = PostfixEnvelopeSMTPBackend(
+            host=smtp_config.host,
+            port=smtp_config.port,
+            username=smtp_config.username or None,
+            password=smtp_config.password or None,
+            use_tls=smtp_config.use_tls,
+            use_ssl=smtp_config.use_ssl,
+            timeout=smtp_config.timeout,
+            fail_silently=fail_silently,
+        )
+
+    msg = EmailMessage(
+        subject=subject,
+        body=body,
+        from_email=from_addr,
+        to=recipients,
+        headers=headers,
+        connection=connection,
+    )
+    return msg.send(fail_silently=fail_silently)
+
+
 def trigger_event_hooks(event_name, instance, user=None, details=""):
     """
     Executes all active event hooks configured for `event_name`.
     e.g. event_name='program_created'
     """
-    from django.core.mail import send_mail
-    from django.conf import settings
     from django.utils import timezone
     from .models import EventHook
     import urllib.request
@@ -141,11 +206,10 @@ def trigger_event_hooks(event_name, instance, user=None, details=""):
                 if recipients:
                     subject = (hook.email_subject or "[WCGtv] {event}: {title}").format(**context)
                     body = (hook.email_body or "Event: {event}\nTitle: {title}").format(**context)
-                    send_mail(
+                    send_wcgtv_email(
                         subject=subject,
-                        message=body,
-                        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@wcgtv.local"),
-                        recipient_list=recipients,
+                        body=body,
+                        recipients=recipients,
                         fail_silently=True,
                     )
             elif hook.action_type == "webhook" and hook.webhook_url:

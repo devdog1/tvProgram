@@ -47,4 +47,7 @@ urlpatterns = [
     path("options/<str:model_name>/new/", views.option_create, name="option_create"),
     path("options/<str:model_name>/<int:pk>/edit/", views.option_edit, name="option_edit"),
     path("options/<str:model_name>/<int:pk>/toggle/", views.option_toggle, name="option_toggle"),
+
+    # SMTP Settings Admin View
+    path("settings/smtp/", views.smtp_settings_view, name="smtp_settings"),
 ]

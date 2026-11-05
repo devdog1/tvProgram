@@ -88,6 +88,13 @@
             <i class="bi bi-clock-history"></i> Change Log
           </a>
         </li>
+        {% if user.is_staff or user.is_superuser or perms.programs.change_smtpsettings %}
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'smtp_settings' %}active{% endif %}" href="{% url 'smtp_settings' %}">
+            <i class="bi bi-envelope-at"></i> SMTP & Mail Relay
+          </a>
+        </li>
+        {% endif %}
         {% if user.is_staff or user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link" href="{% url 'admin:index' %}" target="_blank">

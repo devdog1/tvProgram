@@ -19,6 +19,7 @@ from .models import (
     ProgramAttachment,
     ChangeLog,
     EventHook,
+    SMTPSettings,
 )
 from .forms import (
     ProgramForm,
@@ -30,6 +31,7 @@ from .forms import (
     ShareOptionForm,
     EventHookForm,
     BulkProgramImportForm,
+    SMTPSettingsForm,
 )
 from .services import (
     log_change,
@@ -915,12 +917,41 @@ def custom_field_delete(request, pk):
 
 @login_required
 def signoff_queue(request):
-    pending_programs = Program.objects.filter(status="pending_review").select_related("series", "created_by")
-    pending_series = Series.objects.filter(status="pending_review").select_related("created_by")
+    """
+    Validation queue for pending programs and series.
+    By default, only displays items owned by the user's groups or created by the user,
+    unless the user possesses 'view_all_programs' / 'view_all_series' permissions.
+    """
+    user = request.user
+    user_groups = user.groups.all()
+
+    # Filter programs
+    pending_programs = Program.objects.filter(status="pending_review").select_related("series", "created_by", "owner_group")
+    if not (user.is_superuser or user.has_perm("programs.view_all_programs")):
+        pending_programs = pending_programs.filter(
+            Q(owner_group__in=user_groups) | Q(created_by=user)
+        ).distinct()
+
+    # Filter series
+    pending_series = Series.objects.filter(status="pending_review").select_related("created_by", "owner_group")
+    if not (user.is_superuser or user.has_perm("programs.view_all_series")):
+        pending_series = pending_series.filter(
+            Q(owner_group__in=user_groups) | Q(created_by=user)
+        ).distinct()
+
+    is_filtered = not (
+        (user.is_superuser or user.has_perm("programs.view_all_programs"))
+        and (user.is_superuser or user.has_perm("programs.view_all_series"))
+    )
+
     return render(
         request,
         "programs/signoff_queue.html",
-        {"pending_programs": pending_programs, "pending_series": pending_series},
+        {
+            "pending_programs": pending_programs,
+            "pending_series": pending_series,
+            "is_filtered": is_filtered,
+        },
     )
 
 
@@ -1109,3 +1140,54 @@ def option_toggle(request, model_name, pk):
     log_change(request.user, "Updated", instance, {"is_enabled": instance.is_enabled})
     messages.success(request, f"{verbose_name} '{instance}' was {status_str}.")
     return redirect("manage_options")
+
+
+# ==============================================================================
+# SMTP Relay Settings View
+# ==============================================================================
+
+@login_required
+def smtp_settings_view(request):
+    """
+    Admin configuration for SMTP relay server, sender From address,
+    and Postfix envelope from (Return-Path).
+    """
+    if not (request.user.is_staff or request.user.is_superuser or request.user.has_perm("programs.change_smtpsettings")):
+        raise PermissionDenied("You do not have permission to configure SMTP settings.")
+
+    instance = SMTPSettings.objects.first()
+    if not instance:
+        instance = SMTPSettings.objects.create(
+            host="localhost",
+            port=25,
+            from_address="wcgtv@wcgtv.local",
+            envelope_from="wcgtv@wcgtv.local",
+            is_active=True,
+        )
+
+    if request.method == "POST":
+        form = SMTPSettingsForm(request.POST, instance=instance)
+        if form.is_valid():
+            saved_settings = form.save()
+            log_change(
+                request.user,
+                "Updated",
+                saved_settings,
+                {
+                    "host": saved_settings.host,
+                    "port": saved_settings.port,
+                    "from_address": saved_settings.from_address,
+                    "envelope_from": saved_settings.get_envelope_from(),
+                    "is_active": saved_settings.is_active,
+                },
+            )
+            messages.success(request, "SMTP relay settings and Postfix envelope sender updated successfully.")
+            return redirect("smtp_settings")
+    else:
+        form = SMTPSettingsForm(instance=instance)
+
+    return render(
+        request,
+        "programs/smtp_settings.html",
+        {"form": form, "settings_obj": instance},
+    )

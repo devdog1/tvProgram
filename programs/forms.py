@@ -10,6 +10,7 @@ from .models import (
     CustomField,
     ProgramAttachment,
     EventHook,
+    SMTPSettings,
 )
 
 
@@ -220,6 +221,35 @@ class CommunityForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "is_enabled": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class SMTPSettingsForm(forms.ModelForm):
+    class Meta:
+        model = SMTPSettings
+        fields = [
+            "host",
+            "port",
+            "username",
+            "password",
+            "use_tls",
+            "use_ssl",
+            "timeout",
+            "from_address",
+            "envelope_from",
+            "is_active",
+        ]
+        widgets = {
+            "host": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. postfix.internal or smtp.relay.com"}),
+            "port": forms.NumberInput(attrs={"class": "form-control"}),
+            "username": forms.TextInput(attrs={"class": "form-control"}),
+            "password": forms.PasswordInput(attrs={"class": "form-control"}, render_value=True),
+            "use_tls": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "use_ssl": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "timeout": forms.NumberInput(attrs={"class": "form-control"}),
+            "from_address": forms.EmailInput(attrs={"class": "form-control", "placeholder": "wcgtv@wcgtv.local"}),
+            "envelope_from": forms.EmailInput(attrs={"class": "form-control", "placeholder": "postfix-bounce@wcgtv.local (defaults to from address if blank)"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
 

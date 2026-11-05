@@ -807,3 +807,130 @@ class WCGtvComprehensiveTests(TestCase):
         series_field_qs_all = resp_create_all.context["form"].fields["series"].queryset
         self.assertIn(series_a, series_field_qs_all)
         self.assertIn(series_b, series_field_qs_all)
+
+    def test_smtp_relay_settings_and_envelope_from(self):
+        """
+        Verify SMTP relay settings configuration and envelope sender (Return-Path) handling.
+        """
+        from .models import SMTPSettings
+        from .services import send_wcgtv_email
+        from django.core import mail
+
+        SMTPSettings.objects.all().delete()
+        smtp_cfg = SMTPSettings.objects.create(
+            host="postfix.example.internal",
+            port=25,
+            from_address="wcgtv-noreply@wcgtv.org",
+            envelope_from="postfix-bounces@wcgtv.org",
+            is_active=True,
+        )
+
+        self.assertEqual(smtp_cfg.get_envelope_from(), "postfix-bounces@wcgtv.org")
+
+        mail.outbox.clear()
+        send_wcgtv_email("Alert Subject", "Alert Body", ["test-dest@wcgtv.org"])
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.from_email, "wcgtv-noreply@wcgtv.org")
+        self.assertEqual(sent.extra_headers.get("Return-Path"), "postfix-bounces@wcgtv.org")
+        self.assertEqual(sent.extra_headers.get("Sender"), "postfix-bounces@wcgtv.org")
+
+        # Test admin settings view
+        self.client.login(username="admin", password="password123")
+        resp = self.client.get(reverse("smtp_settings"))
+        self.assertEqual(resp.status_code, 200)
+
+        # Update settings via post
+        post_data = {
+            "host": "relay.postfix.lan",
+            "port": 587,
+            "username": "smtpuser",
+            "password": "secretpassword",
+            "use_tls": True,
+            "use_ssl": False,
+            "timeout": 15,
+            "from_address": "news@wcgtv.ca",
+            "envelope_from": "bounces@wcgtv.ca",
+            "is_active": True,
+        }
+        post_resp = self.client.post(reverse("smtp_settings"), post_data)
+        self.assertRedirects(post_resp, reverse("smtp_settings"))
+
+        smtp_cfg.refresh_from_db()
+        self.assertEqual(smtp_cfg.host, "relay.postfix.lan")
+        self.assertEqual(smtp_cfg.from_address, "news@wcgtv.ca")
+        self.assertEqual(smtp_cfg.envelope_from, "bounces@wcgtv.ca")
+
+    def test_signoff_queue_user_group_and_own_filtering(self):
+        """
+        Verify Sign-off Validation Queue defaults to user's own items and owner group items,
+        unless user has view_all permissions.
+        """
+        group_news = Group.objects.create(name="News Group")
+        group_sports = Group.objects.create(name="Sports Group")
+
+        user_reporter = User.objects.create_user(username="reporter_user", password="password123")
+        user_reporter.groups.add(group_news)
+
+        # Items for News Group (pending review)
+        prog_news = Program.objects.create(
+            title="News at Noon",
+            date_recorded="2025-02-01",
+            producer="NewsTeam",
+            length="00:30:00",
+            filename="news.mp4",
+            status="pending_review",
+            owner_group=group_news,
+        )
+        series_news = Series.objects.create(
+            title="Daily News Series",
+            status="pending_review",
+            owner_group=group_news,
+        )
+
+        # Items for Sports Group (pending review)
+        prog_sports = Program.objects.create(
+            title="Sports Roundup",
+            date_recorded="2025-02-01",
+            producer="SportsTeam",
+            length="00:30:00",
+            filename="sports.mp4",
+            status="pending_review",
+            owner_group=group_sports,
+        )
+        series_sports = Series.objects.create(
+            title="Weekly Sports Highlights",
+            status="pending_review",
+            owner_group=group_sports,
+        )
+
+        client_reporter = Client()
+        client_reporter.login(username="reporter_user", password="password123")
+
+        # By default, reporter only sees News Group items in signoff queue
+        resp_q = client_reporter.get(reverse("signoff_queue"))
+        self.assertEqual(resp_q.status_code, 200)
+        q_progs = [p.title for p in resp_q.context["pending_programs"]]
+        q_series = [s.title for s in resp_q.context["pending_series"]]
+
+        self.assertIn("News at Noon", q_progs)
+        self.assertNotIn("Sports Roundup", q_progs)
+        self.assertIn("Daily News Series", q_series)
+        self.assertNotIn("Weekly Sports Highlights", q_series)
+
+        # Add view_all permissions to reporter
+        p_all_p = Permission.objects.get(codename="view_all_programs")
+        p_all_s = Permission.objects.get(codename="view_all_series")
+        user_reporter.user_permissions.add(p_all_p, p_all_s)
+        user_reporter = User.objects.get(pk=user_reporter.pk)
+
+        # Now reporter sees both news and sports items
+        resp_q_all = client_reporter.get(reverse("signoff_queue"))
+        all_q_progs = [p.title for p in resp_q_all.context["pending_programs"]]
+        all_q_series = [s.title for s in resp_q_all.context["pending_series"]]
+
+        self.assertIn("News at Noon", all_q_progs)
+        self.assertIn("Sports Roundup", all_q_progs)
+        self.assertIn("Daily News Series", all_q_series)
+        self.assertIn("Weekly Sports Highlights", all_q_series)
