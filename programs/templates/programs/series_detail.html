@@ -53,6 +53,16 @@
               <td>{{ series.description|linebreaksbr|default:"No description" }}</td>
             </tr>
             <tr>
+              <th>Owner Group</th>
+              <td>
+                {% if series.owner_group %}
+                  <span class="badge bg-secondary"><i class="bi bi-people-fill me-1"></i>{{ series.owner_group.name }}</span>
+                {% else %}
+                  <span class="text-muted">No group assigned</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
               <th>Author / Creator</th>
               <td>{{ series.created_by.username|default:"System" }}</td>
             </tr>

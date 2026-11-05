@@ -32,16 +32,51 @@ def log_change(user, action, instance, changes_dict=None):
 def can_edit_program(user, program):
     """
     Checks if a user can edit a program:
-    - User has change_program permission (e.g. Program Editors / Admins)
-    - OR user is the creator of the program (and authenticated)
+    - User is superuser or has change_program permission (e.g. Program Editors / Admins)
+    - OR user is a member of the owner_group of the program
+    - OR user is the creator of the program
     """
     if not user or not user.is_authenticated:
         return False
     if user.is_superuser or user.has_perm("programs.change_program"):
         return True
+    if program.owner_group_id and user.groups.filter(id=program.owner_group_id).exists():
+        return True
     if program.created_by_id and program.created_by_id == user.id:
         return True
     return False
+
+
+def can_edit_series(user, series):
+    """
+    Checks if a user can edit a series:
+    - User is superuser or has change_series permission
+    - OR user is a member of the owner_group of the series
+    - OR user is the creator of the series
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser or user.has_perm("programs.change_series"):
+        return True
+    if series.owner_group_id and user.groups.filter(id=series.owner_group_id).exists():
+        return True
+    if series.created_by_id and series.created_by_id == user.id:
+        return True
+    return False
+
+
+def user_can_view_all_programs(user):
+    """Checks if the user has global permission to view all programs."""
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or user.has_perm("programs.view_all_programs")
+
+
+def user_can_view_all_series(user):
+    """Checks if the user has global permission to view all series."""
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or user.has_perm("programs.view_all_series")
 
 
 def can_delete_program(user, program):

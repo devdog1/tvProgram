@@ -663,3 +663,147 @@ class WCGtvComprehensiveTests(TestCase):
         cfv_series = CustomFieldValue.objects.get(series=series, custom_field=file_field)
         self.assertTrue(bool(cfv_series.file_upload))
         self.assertIn("bible", cfv_series.file_upload.name)
+
+    # 15. User Group Ownership, Edit Permissions, and Draft Reset Tests
+    def test_owner_group_permissions_and_edit_draft_reset(self):
+        sports_group = Group.objects.create(name="Sports Production Group")
+        news_group = Group.objects.create(name="News Production Group")
+
+        # Put creator in sports_group, other in news_group
+        self.creator_user.groups.add(sports_group)
+        self.other_user.groups.add(news_group)
+
+        # Create program owned by sports_group, signed off
+        prog = Program.objects.create(
+            title="Westman Volleyball Championship",
+            date_recorded="2025-04-10",
+            producer="Sports Group Lead",
+            length="01:15:00",
+            filename="volleyball.mp4",
+            owner_group=sports_group,
+            status="signed_off",
+            signed_off_by=self.editor_user,
+        )
+
+        # Create user3 also in sports_group (not original author, but group member)
+        user3 = User.objects.create_user(username="sports_colleague", password="password123")
+        user3.groups.add(sports_group)
+
+        client_user3 = Client()
+        client_user3.login(username="sports_colleague", password="password123")
+
+        # user3 can edit the program because they belong to the owner_group!
+        edit_url = reverse("program_edit", kwargs={"pk": prog.pk})
+        resp = client_user3.get(edit_url)
+        self.assertEqual(resp.status_code, 200)
+
+        # Submit an edit as user3
+        post_resp = client_user3.post(
+            edit_url,
+            {
+                "title": "Westman Volleyball Championship Final Cut",
+                "owner_group": sports_group.id,
+                "date_recorded": "2025-04-10",
+                "producer": "Sports Group Lead",
+                "length": "01:15:00",
+                "filename": "volleyball_final.mp4",
+            },
+        )
+        self.assertEqual(post_resp.status_code, 302)
+
+        # Confirm program status was moved back to draft state, requiring redo of sign-off
+        prog.refresh_from_db()
+        self.assertEqual(prog.title, "Westman Volleyball Championship Final Cut")
+        self.assertEqual(prog.status, "draft")
+        self.assertIsNone(prog.signed_off_by)
+        self.assertIsNone(prog.signed_off_at)
+        self.assertIn("Reset to draft on edit", prog.sign_off_notes)
+
+        # Member of news_group CANNOT edit sports_group program
+        client_other = Client()
+        client_other.login(username="other", password="password123")
+        resp_forbidden = client_other.get(edit_url)
+        self.assertEqual(resp_forbidden.status_code, 403)
+
+    # 16. Default filtering by owner group vs view_all_programs and view_all_series
+    def test_default_group_filtering_and_view_all_permissions(self):
+        group_a = Group.objects.create(name="Station Alpha")
+        group_b = Group.objects.create(name="Station Beta")
+
+        user_alpha = User.objects.create_user(username="alpha_user", password="password123")
+        user_alpha.groups.add(group_a)
+
+        user_beta = User.objects.create_user(username="beta_user", password="password123")
+        user_beta.groups.add(group_b)
+
+        # Programs & Series for Alpha
+        series_a = Series.objects.create(title="Alpha Series", owner_group=group_a)
+        prog_a = Program.objects.create(
+            title="Alpha Morning",
+            date_recorded="2025-01-01",
+            producer="A",
+            length="00:30:00",
+            filename="a.mp4",
+            owner_group=group_a,
+            series=series_a,
+        )
+
+        # Programs & Series for Beta
+        series_b = Series.objects.create(title="Beta Series", owner_group=group_b)
+        prog_b = Program.objects.create(
+            title="Beta Evening",
+            date_recorded="2025-01-01",
+            producer="B",
+            length="00:30:00",
+            filename="b.mp4",
+            owner_group=group_b,
+            series=series_b,
+        )
+
+        client_alpha = Client()
+        client_alpha.login(username="alpha_user", password="password123")
+
+        # By default, user_alpha only sees group_a programs in program_list
+        resp_progs = client_alpha.get(reverse("program_list"))
+        prog_titles = [p.title for p in resp_progs.context["programs"]]
+        self.assertIn("Alpha Morning", prog_titles)
+        self.assertNotIn("Beta Evening", prog_titles)
+
+        # By default, user_alpha only sees group_a series in series_list
+        resp_series = client_alpha.get(reverse("series_list"))
+        series_titles = [s.title for s in resp_series.context["series_list"]]
+        self.assertIn("Alpha Series", series_titles)
+        self.assertNotIn("Beta Series", series_titles)
+
+        # When adding a program, the series selector only shows series visible to user_alpha (Alpha Series only)
+        p_add = Permission.objects.get(codename="add_program")
+        user_alpha.user_permissions.add(p_add)
+        user_alpha = User.objects.get(pk=user_alpha.pk)
+
+        resp_create = client_alpha.get(reverse("program_create"))
+        series_field_qs = resp_create.context["form"].fields["series"].queryset
+        self.assertIn(series_a, series_field_qs)
+        self.assertNotIn(series_b, series_field_qs)
+
+        # Grant user_alpha view_all_programs & view_all_series permissions
+        p_all_p = Permission.objects.get(codename="view_all_programs")
+        p_all_s = Permission.objects.get(codename="view_all_series")
+        user_alpha.user_permissions.add(p_all_p, p_all_s)
+        user_alpha = User.objects.get(pk=user_alpha.pk)
+
+        # Now user_alpha sees all programs and all series
+        resp_progs_all = client_alpha.get(reverse("program_list"))
+        all_prog_titles = [p.title for p in resp_progs_all.context["programs"]]
+        self.assertIn("Alpha Morning", all_prog_titles)
+        self.assertIn("Beta Evening", all_prog_titles)
+
+        resp_series_all = client_alpha.get(reverse("series_list"))
+        all_series_titles = [s.title for s in resp_series_all.context["series_list"]]
+        self.assertIn("Alpha Series", all_series_titles)
+        self.assertIn("Beta Series", all_series_titles)
+
+        # And series selector now includes both series
+        resp_create_all = client_alpha.get(reverse("program_create"))
+        series_field_qs_all = resp_create_all.context["form"].fields["series"].queryset
+        self.assertIn(series_a, series_field_qs_all)
+        self.assertIn(series_b, series_field_qs_all)

@@ -34,10 +34,13 @@ from .forms import (
 from .services import (
     log_change,
     can_edit_program,
+    can_edit_series,
     can_delete_program,
     can_sign_off,
     trigger_event_hooks,
     process_bulk_program_csv,
+    user_can_view_all_programs,
+    user_can_view_all_series,
 )
 
 
@@ -87,18 +90,15 @@ def dashboard_view(request):
 def program_list(request):
     """
     Optimized program listing view capable of handling many 10,000s of programs.
-    Uses database-level filtering, ordering, and server-side pagination with Paginator.
-    Supports comprehensive search and filter criteria:
-    - Text query `q` (matching title, producer, filename, comments, community, source code)
-    - Status filter
-    - Category filter
-    - Community filter
-    - Source code filter
-    - Date recorded range (date_from and date_to)
-    - Sorting by various fields
-    - Configurable page size (25, 50, 100, 200)
+    By default only shows programs that the user is a member of the owner user group,
+    unless the user has the 'view_all_programs' permission (or is superuser).
     """
-    qs = Program.objects.select_related("series", "created_by")
+    qs = Program.objects.select_related("series", "created_by", "owner_group")
+
+    if not user_can_view_all_programs(request.user):
+        user_groups = request.user.groups.all()
+        # Filter by owner_group in user's groups OR programs created by this user
+        qs = qs.filter(Q(owner_group__in=user_groups) | Q(created_by=request.user))
 
     q = request.GET.get("q", "").strip()
     status_filter = request.GET.get("status", "").strip()
@@ -179,10 +179,15 @@ def program_list(request):
     # Annotate only the current page's slice (e.g. 50 items instead of 100,000!)
     is_admin_or_editor = request.user.is_superuser or request.user.has_perm("programs.change_program")
     can_del_globally = request.user.is_superuser or request.user.has_perm("programs.delete_program")
+    user_groups_set = set(request.user.groups.values_list("id", flat=True))
     user_id = request.user.id
 
     for p in page_obj.object_list:
-        p.user_can_edit = is_admin_or_editor or (p.created_by_id == user_id)
+        p.user_can_edit = (
+            is_admin_or_editor
+            or (p.created_by_id == user_id)
+            or (p.owner_group_id and p.owner_group_id in user_groups_set)
+        )
         p.user_can_delete = can_del_globally
 
     categories = Category.objects.filter(is_enabled=True)
@@ -226,9 +231,17 @@ def program_list(request):
 @login_required
 def program_detail(request, pk):
     program = get_object_or_404(
-        Program.objects.select_related("series", "created_by", "signed_off_by").prefetch_related("attachments"),
+        Program.objects.select_related("series", "created_by", "signed_off_by", "owner_group").prefetch_related("attachments"),
         pk=pk,
     )
+
+    # Permission check for viewing: if not superuser / view_all_programs, must be in owner_group or creator
+    if not user_can_view_all_programs(request.user):
+        if not (
+            (program.owner_group and request.user.groups.filter(id=program.owner_group.id).exists())
+            or (program.created_by_id == request.user.id)
+        ):
+            raise PermissionDenied("You do not have permission to view this program.")
     user_can_edit = can_edit_program(request.user, program)
     user_can_delete = can_delete_program(request.user, program)
     user_can_approve = can_sign_off(request.user)
@@ -276,7 +289,7 @@ def program_create(request):
     active_custom_fields = CustomField.objects.filter(is_active=True, target_element="program")
 
     if request.method == "POST":
-        form = ProgramForm(request.POST)
+        form = ProgramForm(request.POST, user=request.user)
         if form.is_valid():
             program = form.save(commit=False)
             program.created_by = request.user
@@ -322,7 +335,7 @@ def program_create(request):
                 initial["series"] = series
             except Series.DoesNotExist:
                 pass
-        form = ProgramForm(initial=initial)
+        form = ProgramForm(initial=initial, user=request.user)
 
     custom_field_inputs = [
         {"field": cf, "value": cf.default_value or "", "file_url": ""}
@@ -349,9 +362,18 @@ def program_edit(request, pk):
     }
 
     if request.method == "POST":
-        form = ProgramForm(request.POST, instance=program)
+        form = ProgramForm(request.POST, instance=program, user=request.user)
         if form.is_valid():
-            updated_program = form.save()
+            # If there is an edit, move the program back to draft state,
+            # and have to redo the sign-off process
+            was_already_signed_off_or_pending = program.status != "draft"
+            updated_program = form.save(commit=False)
+            if was_already_signed_off_or_pending:
+                updated_program.status = "draft"
+                updated_program.signed_off_by = None
+                updated_program.signed_off_at = None
+                updated_program.sign_off_notes = f"Reset to draft on edit by {request.user.username}. Needs new sign-off."
+            updated_program.save()
 
             # Handle custom fields update
             changes_cf = {}
@@ -400,7 +422,7 @@ def program_edit(request, pk):
             messages.success(request, f"Program '{updated_program.title}' was updated successfully.")
             return redirect("program_detail", pk=updated_program.pk)
     else:
-        form = ProgramForm(instance=program)
+        form = ProgramForm(instance=program, user=request.user)
 
     custom_field_inputs = []
     for cf in active_custom_fields:
@@ -603,13 +625,23 @@ def program_delete_attachment(request, attachment_id):
 
 @login_required
 def series_list(request):
-    series = Series.objects.prefetch_related("episodes").select_related("created_by").all()
-    return render(request, "programs/series_list.html", {"series_list": series})
+    qs = Series.objects.prefetch_related("episodes").select_related("created_by", "owner_group")
+    if not user_can_view_all_series(request.user):
+        user_groups = request.user.groups.all()
+        qs = qs.filter(Q(owner_group__in=user_groups) | Q(created_by=request.user))
+    return render(request, "programs/series_list.html", {"series_list": qs})
 
 
 @login_required
 def series_detail(request, pk):
-    series = get_object_or_404(Series.objects.prefetch_related("episodes").select_related("created_by", "signed_off_by"), pk=pk)
+    series = get_object_or_404(Series.objects.prefetch_related("episodes").select_related("created_by", "signed_off_by", "owner_group"), pk=pk)
+    if not user_can_view_all_series(request.user):
+        if not (
+            (series.owner_group and request.user.groups.filter(id=series.owner_group.id).exists())
+            or (series.created_by_id == request.user.id)
+        ):
+            raise PermissionDenied("You do not have permission to view this series.")
+
     user_can_approve = can_sign_off(request.user)
 
     # Custom fields data for Series target element
@@ -639,7 +671,7 @@ def series_detail(request, pk):
 def series_create(request):
     active_custom_fields = CustomField.objects.filter(is_active=True, target_element="series")
     if request.method == "POST":
-        form = SeriesForm(request.POST)
+        form = SeriesForm(request.POST, user=request.user)
         if form.is_valid():
             series = form.save(commit=False)
             series.created_by = request.user
@@ -665,7 +697,7 @@ def series_create(request):
             messages.success(request, f"Series '{series.title}' created.")
             return redirect("series_detail", pk=series.pk)
     else:
-        form = SeriesForm()
+        form = SeriesForm(user=request.user)
 
     custom_field_inputs = [
         {"field": cf, "value": cf.default_value or "", "file_url": ""}
@@ -677,15 +709,27 @@ def series_create(request):
 @login_required
 def series_edit(request, pk):
     series = get_object_or_404(Series, pk=pk)
+    if not can_edit_series(request.user, series):
+        raise PermissionDenied("You do not have permission to edit this series.")
+
     active_custom_fields = CustomField.objects.filter(is_active=True, target_element="series")
     existing_values_map = {
         cfv.custom_field_id: cfv for cfv in series.custom_field_values.all()
     }
 
     if request.method == "POST":
-        form = SeriesForm(request.POST, instance=series)
+        form = SeriesForm(request.POST, instance=series, user=request.user)
         if form.is_valid():
-            s = form.save()
+            # If there is an edit, move the series back to draft state,
+            # and have to redo the sign-off process
+            was_already_signed_off_or_pending = series.status != "draft"
+            s = form.save(commit=False)
+            if was_already_signed_off_or_pending:
+                s.status = "draft"
+                s.signed_off_by = None
+                s.signed_off_at = None
+                s.sign_off_notes = f"Reset to draft on edit by {request.user.username}. Needs new sign-off."
+            s.save()
 
             # Handle series custom fields update
             changes_cf = {}
@@ -722,7 +766,7 @@ def series_edit(request, pk):
             messages.success(request, f"Series '{s.title}' updated.")
             return redirect("series_detail", pk=s.pk)
     else:
-        form = SeriesForm(instance=series)
+        form = SeriesForm(instance=series, user=request.user)
 
     custom_field_inputs = []
     for cf in active_custom_fields:

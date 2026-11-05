@@ -29,6 +29,7 @@
           <tr>
             <th>ID</th>
             <th>Title</th>
+            <th>Owner Group</th>
             <th>Type</th>
             <th>Status</th>
             <th>Episodes / Parts</th>
@@ -45,6 +46,13 @@
               <a href="{% url 'series_detail' s.id %}" class="fw-semibold text-primary text-decoration-none">
                 {{ s.title }}
               </a>
+            </td>
+            <td>
+              {% if s.owner_group %}
+                <span class="badge bg-secondary"><i class="bi bi-people-fill me-1"></i>{{ s.owner_group.name }}</span>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
             </td>
             <td><span class="badge bg-light text-dark border">{{ s.get_series_type_display }}</span></td>
             <td>

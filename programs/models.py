@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.core.validators import RegexValidator
 
 
@@ -95,6 +96,16 @@ class Series(models.Model):
     signed_off_at = models.DateTimeField(null=True, blank=True)
     sign_off_notes = models.TextField(blank=True, null=True)
 
+    # Owner user group
+    owner_group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_series",
+        help_text="User group that owns this series",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -102,6 +113,9 @@ class Series(models.Model):
         verbose_name = "Series"
         verbose_name_plural = "Series"
         ordering = ["title"]
+        permissions = [
+            ("view_all_series", "Can view all series regardless of owner group"),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.get_series_type_display()})"
@@ -178,11 +192,22 @@ class Program(models.Model):
     signed_off_at = models.DateTimeField(null=True, blank=True)
     sign_off_notes = models.TextField(blank=True, null=True)
 
+    # Owner user group
+    owner_group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_programs",
+        help_text="User group that owns this program",
+    )
+
     class Meta:
         db_table = "programs"
         ordering = ["-id"]
         permissions = [
             ("can_bulk_import", "Can bulk import programs"),
+            ("view_all_programs", "Can view all programs regardless of owner group"),
         ]
 
     def __str__(self):

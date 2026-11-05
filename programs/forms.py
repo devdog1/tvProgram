@@ -29,6 +29,7 @@ class ProgramForm(forms.ModelForm):
         model = Program
         fields = [
             "title",
+            "owner_group",
             "date_recorded",
             "expiry_date",
             "producer",
@@ -46,6 +47,7 @@ class ProgramForm(forms.ModelForm):
         ]
         widgets = {
             "title": forms.TextInput(attrs={"class": "form-control", "required": "required"}),
+            "owner_group": forms.Select(attrs={"class": "form-select"}),
             "date_recorded": forms.DateInput(attrs={"class": "form-control", "placeholder": "YYYY-MM-DD", "required": "required"}),
             "expiry_date": forms.DateInput(attrs={"class": "form-control", "placeholder": "YYYY-MM-DD"}),
             "producer": forms.TextInput(attrs={"class": "form-control", "required": "required"}),
@@ -58,8 +60,29 @@ class ProgramForm(forms.ModelForm):
             "comments": forms.TextInput(attrs={"class": "form-control", "maxlength": "255"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.user = user
+
+        # Filter series selector to only show series visible to that user based on their permissions
+        from django.contrib.auth.models import Group
+        if user:
+            can_view_all_s = user.is_superuser or user.has_perm("programs.view_all_series")
+            if can_view_all_s:
+                self.fields["series"].queryset = Series.objects.all()
+            else:
+                user_groups = user.groups.all()
+                self.fields["series"].queryset = Series.objects.filter(owner_group__in=user_groups)
+
+            # Limit owner_group choices: if superuser or has view_all_programs, can choose any group;
+            # otherwise, only groups the user belongs to.
+            can_view_all_p = user.is_superuser or user.has_perm("programs.view_all_programs")
+            if can_view_all_p:
+                self.fields["owner_group"].queryset = Group.objects.all()
+            else:
+                self.fields["owner_group"].queryset = user.groups.all()
+                if not self.instance.pk and user.groups.exists():
+                    self.initial["owner_group"] = user.groups.first()
 
         # Populate Category dropdown
         cat_choices = [("", "-")] + [
@@ -126,12 +149,25 @@ class ProgramForm(forms.ModelForm):
 class SeriesForm(forms.ModelForm):
     class Meta:
         model = Series
-        fields = ["title", "series_type", "description"]
+        fields = ["title", "owner_group", "series_type", "description"]
         widgets = {
             "title": forms.TextInput(attrs={"class": "form-control", "required": "required"}),
+            "owner_group": forms.Select(attrs={"class": "form-select"}),
             "series_type": forms.Select(attrs={"class": "form-select"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django.contrib.auth.models import Group
+        if user:
+            can_view_all_s = user.is_superuser or user.has_perm("programs.view_all_series")
+            if can_view_all_s:
+                self.fields["owner_group"].queryset = Group.objects.all()
+            else:
+                self.fields["owner_group"].queryset = user.groups.all()
+                if not self.instance.pk and user.groups.exists():
+                    self.initial["owner_group"] = user.groups.first()
 
 
 class CustomFieldForm(forms.ModelForm):
