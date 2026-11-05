@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Program, Category, Community, SourceCode, ShareOption, Series, CustomField, EventHook, SMTPSettings
+from .models import Program, Category, Community, SourceCode, ShareOption, Series, CustomField, EventHook, SMTPSettings, APIKey
 
 
 @admin.register(Program)
@@ -37,6 +37,14 @@ class SMTPSettingsAdmin(admin.ModelAdmin):
             "description": "Set the From header address and Postfix envelope from (Return-Path). If envelope from is empty, from address is used."
         }),
     )
+
+
+@admin.register(APIKey)
+class APIKeyAdmin(admin.ModelAdmin):
+    list_display = ("name", "prefix", "user", "is_active", "created_at", "last_used_at")
+    list_filter = ("is_active", "created_at")
+    search_fields = ("name", "key", "prefix", "user__username")
+    readonly_fields = ("prefix", "created_at", "last_used_at")
 
 
 @admin.register(SourceCode)

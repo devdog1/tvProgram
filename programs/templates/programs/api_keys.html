@@ -1,0 +1,147 @@
+{% extends "programs/base.html" %}
+
+{% block title %}API Keys & Automation - WCGtv Platform{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-12 d-flex justify-content-between align-items-center">
+    <div>
+      <h2 class="mb-1"><i class="bi bi-key-fill text-warning"></i> API Keys & Automated Ingest</h2>
+      <p class="text-muted mb-0">Generate and manage API keys for automated ingest, integrations, and external system sync.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'api-docs' %}" target="_blank" class="btn btn-outline-info">
+        <i class="bi bi-file-code"></i> Interactive Swagger UI
+      </a>
+      <a href="{% url 'api-redoc' %}" target="_blank" class="btn btn-outline-secondary">
+        <i class="bi bi-book"></i> API Documentation
+      </a>
+    </div>
+  </div>
+</div>
+
+{% if new_key %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  <h5 class="alert-heading"><i class="bi bi-check-circle-fill"></i> New API Key Created!</h5>
+  <p>Make sure to copy your new API key now. You will not be able to see this key again!</p>
+  <div class="input-group mb-2" style="max-width: 600px;">
+    <input type="text" class="form-control font-monospace bg-light" id="newApiKeyValue" value="{{ new_key }}" readonly>
+    <button class="btn btn-outline-success" type="button" onclick="navigator.clipboard.writeText(document.getElementById('newApiKeyValue').value); alert('API Key copied to clipboard!');">
+      <i class="bi bi-clipboard"></i> Copy Key
+    </button>
+  </div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="row">
+  <div class="col-md-4 mb-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white font-weight-bold">
+        <i class="bi bi-plus-circle text-primary"></i> Generate New API Key
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'api_keys_view' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="name" class="form-label">Key Name / Description</label>
+            <input type="text" class="form-control" id="name" name="name" required placeholder="e.g. Broadcast Ingest Bot, Transcoder Server">
+            <div class="form-text">Choose a descriptive label to identify this key's usage.</div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-key"></i> Generate Key
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-header bg-white font-weight-bold">
+        <i class="bi bi-info-circle text-info"></i> API Authentication Quickstart
+      </div>
+      <div class="card-body text-muted small">
+        <p>You can authenticate your HTTP requests by providing your API key using either of these methods:</p>
+        <h6>1. X-API-Key Header</h6>
+        <pre class="bg-light p-2 rounded"><code>curl -H "X-API-Key: wcgtv_..." \
+  https://example.com/api/v1/programs/</code></pre>
+
+        <h6>2. Authorization Header</h6>
+        <pre class="bg-light p-2 rounded"><code>curl -H "Authorization: Api-Key wcgtv_..." \
+  https://example.com/api/v1/programs/</code></pre>
+
+        <p class="mt-2">
+          <strong>Note:</strong> By default, the <code>/api/v1/programs/</code> endpoint only returns <em>approved / signed-off</em> programs to external systems. To query unapproved drafts or pending reviews, specify <code>?include_pending=true</code> or filter by <code>?status=...</code>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white font-weight-bold">
+        <i class="bi bi-list-check text-primary"></i> Active API Keys
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Name</th>
+                <th>Prefix</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Last Used</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for key in api_keys %}
+              <tr>
+                <td><strong>{{ key.name }}</strong></td>
+                <td><code>{{ key.prefix }}...</code></td>
+                <td>
+                  {% if key.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Disabled</span>
+                  {% endif %}
+                </td>
+                <td class="small">{{ key.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="small">
+                  {% if key.last_used_at %}
+                    {{ key.last_used_at|timesince }} ago
+                  {% else %}
+                    <span class="text-muted">Never</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <form method="post" action="{% url 'api_key_toggle' key.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm {% if key.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                      {% if key.is_active %}Disable{% else %}Enable{% endif %}
+                    </button>
+                  </form>
+                  <form method="post" action="{% url 'api_key_delete' key.id %}" class="d-inline" onsubmit="return confirm('Are you sure you want to revoke and delete this API key?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      Revoke
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                  <i class="bi bi-key display-6 d-block mb-2"></i>
+                  No API keys generated yet. Use the form on the left to create your first API key.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

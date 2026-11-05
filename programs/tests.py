@@ -16,6 +16,7 @@ from programs.models import (
     ProgramAttachment,
     ChangeLog,
     EventHook,
+    APIKey,
 )
 from programs.forms import ProgramForm
 
@@ -934,3 +935,130 @@ class WCGtvComprehensiveTests(TestCase):
         self.assertIn("Sports Roundup", all_q_progs)
         self.assertIn("Daily News Series", all_q_series)
         self.assertIn("Weekly Sports Highlights", all_q_series)
+
+    # 17. REST API Authentication & Approved Data Filtering Tests
+    def test_api_key_authentication_and_approved_data_filtering(self):
+        """
+        Verify that REST API:
+        1. Authenticates via X-API-Key and Authorization headers.
+        2. By default only returns approved/signed-off programs to external systems.
+        3. Excludes unapproved/pending approval data unless include_pending=true or status specified.
+        4. Swagger UI and OpenAPI schema endpoints are functional.
+        """
+        # Create programs in various states
+        prog_approved = Program.objects.create(
+            title="Approved Ingest Program",
+            date_recorded="2025-05-01",
+            producer="Broadcast Team",
+            length="00:30:00",
+            filename="approved.mp4",
+            status="signed_off",
+            created_by=self.creator_user,
+        )
+        prog_pending = Program.objects.create(
+            title="Unapproved Pending Review Program",
+            date_recorded="2025-05-02",
+            producer="Broadcast Team",
+            length="00:30:00",
+            filename="pending.mp4",
+            status="pending_review",
+            created_by=self.creator_user,
+        )
+        prog_draft = Program.objects.create(
+            title="Unapproved Draft Program",
+            date_recorded="2025-05-03",
+            producer="Broadcast Team",
+            length="00:30:00",
+            filename="draft.mp4",
+            status="draft",
+            created_by=self.creator_user,
+        )
+
+        # Generate API key for creator
+        api_key_obj = APIKey.generate_key(user=self.creator_user, name="Ingest Bot")
+
+        client = Client()
+
+        # Unauthenticated request to /api/v1/programs/ should fail 401 or 403
+        resp_unauth = client.get("/api/v1/programs/")
+        self.assertEqual(resp_unauth.status_code, 403)
+
+        # Authenticate via X-API-Key header
+        resp_x_api = client.get("/api/v1/programs/", HTTP_X_API_KEY=api_key_obj.key)
+        self.assertEqual(resp_x_api.status_code, 200)
+        data = resp_x_api.json()
+
+        # Default query MUST only return signed-off / approved programs!
+        returned_titles = [item["title"] for item in data["results"]]
+        self.assertIn("Approved Ingest Program", returned_titles)
+        self.assertNotIn("Unapproved Pending Review Program", returned_titles)
+        self.assertNotIn("Unapproved Draft Program", returned_titles)
+
+        # Authenticate via Authorization: Api-Key header
+        resp_auth_header = client.get(
+            "/api/v1/programs/",
+            HTTP_AUTHORIZATION=f"Api-Key {api_key_obj.key}",
+        )
+        self.assertEqual(resp_auth_header.status_code, 200)
+
+        # Now query with ?include_pending=true to retrieve unapproved programs
+        resp_pending = client.get(
+            "/api/v1/programs/?include_pending=true",
+            HTTP_X_API_KEY=api_key_obj.key,
+        )
+        self.assertEqual(resp_pending.status_code, 200)
+        pending_titles = [item["title"] for item in resp_pending.json()["results"]]
+        self.assertIn("Approved Ingest Program", pending_titles)
+        self.assertIn("Unapproved Pending Review Program", pending_titles)
+        self.assertIn("Unapproved Draft Program", pending_titles)
+
+        # Specific query for ?status=pending_review
+        resp_only_pending = client.get(
+            "/api/v1/programs/?status=pending_review",
+            HTTP_X_API_KEY=api_key_obj.key,
+        )
+        self.assertEqual(resp_only_pending.status_code, 200)
+        only_pending_titles = [item["title"] for item in resp_only_pending.json()["results"]]
+        self.assertEqual(only_pending_titles, ["Unapproved Pending Review Program"])
+
+        # Check API Key last_used_at was updated
+        api_key_obj.refresh_from_db()
+        self.assertIsNotNone(api_key_obj.last_used_at)
+
+        # Verify Swagger UI endpoint (/api/docs/) and Schema endpoint (/api/schema/)
+        resp_swagger = client.get(reverse("api-docs"))
+        self.assertEqual(resp_swagger.status_code, 200)
+        self.assertIn(b"swagger-ui", resp_swagger.content.lower())
+
+        resp_schema = client.get(reverse("api-schema"))
+        self.assertEqual(resp_schema.status_code, 200)
+
+    # 18. API Key Management UI View Tests
+    def test_api_key_ui_view_generate_toggle_delete(self):
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        # GET API keys view
+        resp = client.get(reverse("api_keys_view"))
+        self.assertEqual(resp.status_code, 200)
+
+        # POST create new API key
+        post_resp = client.post(reverse("api_keys_view"), {"name": "Test Key UI"})
+        self.assertEqual(post_resp.status_code, 200)
+        self.assertIn("new_key", post_resp.context)
+        key_str = post_resp.context["new_key"]
+        self.assertTrue(key_str.startswith("wcgtv_"))
+
+        created_key = APIKey.objects.get(name="Test Key UI")
+        self.assertTrue(created_key.is_active)
+
+        # Toggle disable
+        toggle_resp = client.post(reverse("api_key_toggle", kwargs={"pk": created_key.pk}))
+        self.assertRedirects(toggle_resp, reverse("api_keys_view"))
+        created_key.refresh_from_db()
+        self.assertFalse(created_key.is_active)
+
+        # Delete key
+        del_resp = client.post(reverse("api_key_delete", kwargs={"pk": created_key.pk}))
+        self.assertRedirects(del_resp, reverse("api_keys_view"))
+        self.assertFalse(APIKey.objects.filter(pk=created_key.pk).exists())

@@ -7,6 +7,10 @@ typing_extensions>=4.12.0
 # WSGI HTTP Server for production deployment
 gunicorn>=21.2.0
 
+# REST API & OpenAPI / Swagger
+djangorestframework>=3.14.0
+drf-spectacular>=0.27.0
+
 # Optional Database Connectors
 mysqlclient>=2.2.0
 

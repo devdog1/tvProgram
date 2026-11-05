@@ -471,3 +471,45 @@ class SMTPSettings(models.Model):
         if not obj:
             obj = cls()
         return obj
+
+
+class APIKey(models.Model):
+    """
+    API keys for programmatic integration and automation.
+    Clients can authenticate via:
+    Header: 'X-API-Key: <key>' or 'Authorization: Api-Key <key>'
+    """
+    name = models.CharField(max_length=100, help_text="Friendly label for this API key (e.g. Broadcast Ingest Bot)")
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    prefix = models.CharField(max_length=8, db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="api_keys",
+        help_text="User identity associated with this API key for permissions and auditing",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "API Key"
+        verbose_name_plural = "API Keys"
+
+    def __str__(self):
+        return f"{self.name} ({self.prefix}...)"
+
+    @classmethod
+    def generate_key(cls, user, name):
+        import secrets
+        raw_token = secrets.token_hex(24) # 48 chars hex
+        key_str = f"wcgtv_{raw_token}"
+        prefix = key_str[:12]
+        return cls.objects.create(
+            user=user,
+            name=name,
+            key=key_str,
+            prefix=prefix,
+            is_active=True,
+        )

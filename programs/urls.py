@@ -50,4 +50,9 @@ urlpatterns = [
 
     # SMTP Settings Admin View
     path("settings/smtp/", views.smtp_settings_view, name="smtp_settings"),
+
+    # API Keys Management Views
+    path("settings/api-keys/", views.api_keys_view, name="api_keys_view"),
+    path("settings/api-keys/<int:pk>/toggle/", views.api_key_toggle, name="api_key_toggle"),
+    path("settings/api-keys/<int:pk>/delete/", views.api_key_delete, name="api_key_delete"),
 ]

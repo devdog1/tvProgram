@@ -20,6 +20,7 @@ from .models import (
     ChangeLog,
     EventHook,
     SMTPSettings,
+    APIKey,
 )
 from .forms import (
     ProgramForm,
@@ -1191,3 +1192,69 @@ def smtp_settings_view(request):
         "programs/smtp_settings.html",
         {"form": form, "settings_obj": instance},
     )
+
+
+# ==============================================================================
+# API Key Management Views
+# ==============================================================================
+
+@login_required
+def api_keys_view(request):
+    """
+    View and generate API keys for automated integrations.
+    """
+    new_key = None
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        if name:
+            api_key_obj = APIKey.generate_key(user=request.user, name=name)
+            new_key = api_key_obj.key
+            log_change(request.user, "Created", api_key_obj, {"name": name, "prefix": api_key_obj.prefix})
+            messages.success(request, f"Generated API Key '{name}'.")
+        else:
+            messages.error(request, "Key Name is required.")
+
+    # Show keys owned by the user (or all if superuser)
+    if request.user.is_superuser:
+        keys = APIKey.objects.all()
+    else:
+        keys = APIKey.objects.filter(user=request.user)
+
+    return render(
+        request,
+        "programs/api_keys.html",
+        {"api_keys": keys, "new_key": new_key},
+    )
+
+
+@login_required
+def api_key_toggle(request, pk):
+    if request.user.is_superuser:
+        key_obj = get_object_or_404(APIKey, pk=pk)
+    else:
+        key_obj = get_object_or_404(APIKey, pk=pk, user=request.user)
+
+    if request.method == "POST":
+        key_obj.is_active = not key_obj.is_active
+        key_obj.save()
+        status_str = "enabled" if key_obj.is_active else "disabled"
+        log_change(request.user, "Updated", key_obj, {"is_active": key_obj.is_active})
+        messages.success(request, f"API key '{key_obj.name}' was {status_str}.")
+
+    return redirect("api_keys_view")
+
+
+@login_required
+def api_key_delete(request, pk):
+    if request.user.is_superuser:
+        key_obj = get_object_or_404(APIKey, pk=pk)
+    else:
+        key_obj = get_object_or_404(APIKey, pk=pk, user=request.user)
+
+    if request.method == "POST":
+        name = key_obj.name
+        log_change(request.user, "Deleted", key_obj, {"name": name})
+        key_obj.delete()
+        messages.success(request, f"API key '{name}' was revoked and removed.")
+
+    return redirect("api_keys_view")
