@@ -1,0 +1,146 @@
+{% extends "programs/base.html" %}
+
+{% block title %}{{ action }} Program - WCGtv Metadata Tool{% endblock %}
+
+{% block extra_head %}
+<script>
+  $(function () {
+    $("#dateRecorded").datepicker({ dateFormat: "yy-mm-dd" });
+    $("#expiryDate").datepicker({ dateFormat: "yy-mm-dd" });
+  });
+
+  function validateForm(event) {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
+    const filenameRegex = /^[^\\/:*?"<>|]+\.[a-zA-Z0-9]{1,5}$/;
+    let errors = [];
+
+    const title = document.getElementById("title").value.trim();
+    const dateRecorded = document.getElementById("dateRecorded").value.trim();
+    const expiryDate = document.getElementById("expiryDate").value.trim();
+    const producer = document.getElementById("producer").value.trim();
+    const length = document.getElementById("length").value.trim();
+    const filename = document.getElementById("filename").value.trim();
+    const comments = document.getElementById("comments").value.trim();
+
+    if (!title) errors.push("Title is required.");
+    if (!producer) errors.push("Producer is required.");
+    if (!dateRecorded.match(dateRegex)) errors.push("Date Recorded must be in YYYY-MM-DD format.");
+    if (expiryDate && !expiryDate.match(dateRegex)) errors.push("Expiry Date must be in YYYY-MM-DD format.");
+    if (!length.match(timeRegex)) errors.push("Length must be in HH:MM:SS format.");
+    if (!filename.match(filenameRegex)) errors.push("Filename must be valid with an extension (e.g., myfile.mp4).");
+    if (comments.length > 255) errors.push("Comments must be under 255 characters.");
+
+    if (errors.length > 0) {
+      event.preventDefault();
+      alert(errors.join("\n"));
+    }
+  }
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h3 class="card-title mb-0">{% if action == 'Create' %}Required Information to Submit a Program{% else %}Edit Program: {{ program.title }}{% endif %}</h3>
+      </div>
+      <div class="card-body p-4">
+        {% if form.errors %}
+          <div class="alert alert-danger">
+            <h6 class="alert-heading">Please fix the following errors:</h6>
+            <ul class="mb-0">
+              {% for field in form %}
+                {% for error in field.errors %}
+                  <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+              {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <form method="post" onsubmit="validateForm(event)" novalidate>
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label for="title" class="form-label fw-bold">Title: <span class="text-danger">*</span></label>
+            {{ form.title }}
+          </div>
+
+          <div class="mb-3">
+            <label for="dateRecorded" class="form-label fw-bold">Date Recorded (YYYY-MM-DD): <span class="text-danger">*</span></label>
+            {{ form.date_recorded }}
+          </div>
+
+          <div class="mb-3">
+            <label for="expiryDate" class="form-label">Expiry Date (YYYY-MM-DD):</label>
+            {{ form.expiry_date }}
+          </div>
+
+          <div class="mb-3">
+            <label for="producer" class="form-label fw-bold">Producer: <span class="text-danger">*</span></label>
+            {{ form.producer }}
+          </div>
+
+          <div class="mb-3">
+            <label for="length" class="form-label fw-bold">Length (HH:MM:SS): <span class="text-danger">*</span></label>
+            {{ form.length }}
+          </div>
+
+          <div class="mb-3">
+            <label for="category" class="form-label">Category:</label>
+            {{ form.category }}
+          </div>
+
+          <div class="mb-3">
+            <label for="community" class="form-label">Community:</label>
+            {{ form.community }}
+            <div class="form-text">Hold Ctrl (Cmd on Mac) to select multiple communities.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="sourceCode" class="form-label">Source Code:</label>
+            {{ form.source_code }}
+          </div>
+
+          <div class="mb-3">
+            <label for="share" class="form-label">Share with:</label>
+            {{ form.share }}
+            <div class="form-text">Hold Ctrl (Cmd on Mac) to select multiple share regions.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="filename" class="form-label fw-bold">Upload Filename: <span class="text-danger">*</span></label>
+            {{ form.filename }}
+          </div>
+
+          <div class="mb-3">
+            <label for="comments" class="form-label">Comments:</label>
+            {{ form.comments }}
+          </div>
+
+          {% if action == 'Create' %}
+          <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" name="download_txt" value="1" id="downloadTxtCheck">
+            <label class="form-check-label" for="downloadTxtCheck">
+              Download as attachment .txt metadata file on submission (legacy PHP mode)
+            </label>
+          </div>
+          {% endif %}
+
+          <div class="d-flex justify-content-between align-items-center">
+            <a href="{% url 'program_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" id="submit" name="submit" value="Submit" class="btn btn-primary px-4">
+              {% if action == 'Create' %}Submit{% else %}Save Changes{% endif %}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

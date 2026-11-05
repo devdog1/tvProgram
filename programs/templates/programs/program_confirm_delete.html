@@ -1,0 +1,26 @@
+{% extends "programs/base.html" %}
+
+{% block title %}Delete Program - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card border-danger shadow-sm">
+      <div class="card-header bg-danger text-white">
+        <h4 class="card-title mb-0">Confirm Delete Program</h4>
+      </div>
+      <div class="card-body">
+        <p>Are you sure you want to delete the program: <strong>"{{ program.title }}"</strong> (ID: {{ program.id }})?</p>
+        <p class="text-muted small">This action cannot be undone.</p>
+        <form method="post">
+          {% csrf_token %}
+          <div class="d-flex justify-content-between">
+            <a href="{% url 'program_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-danger">Delete Program</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,206 @@
+{% extends "programs/base.html" %}
+
+{% block title %}Manage System Options - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Manage System Defined Options</h2>
+  <a href="{% url 'program_list' %}" class="btn btn-outline-secondary">&larr; Back to Programs</a>
+</div>
+
+<div class="row g-4">
+  <!-- Categories -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Categories</h5>
+        <a href="{% url 'option_create' 'category' %}" class="btn btn-sm btn-primary">+ Add Category</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0">
+            <thead>
+              <tr>
+                <th>Name / Code</th>
+                <th>Display Name</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in categories %}
+                <tr>
+                  <td><code>{{ item.name }}</code></td>
+                  <td>{{ item.display_name|default:item.name }}</td>
+                  <td>
+                    {% if item.is_enabled %}
+                      <span class="badge bg-success">Enabled</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Disabled</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <form method="post" action="{% url 'option_toggle' 'category' item.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-xs btn-sm {% if item.is_enabled %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                        {% if item.is_enabled %}Disable{% else %}Enable{% endif %}
+                      </button>
+                    </form>
+                    <a href="{% url 'option_edit' 'category' item.id %}" class="btn btn-xs btn-sm btn-outline-secondary">Edit</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-center text-muted">No categories defined.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Communities -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Communities</h5>
+        <a href="{% url 'option_create' 'community' %}" class="btn btn-sm btn-primary">+ Add Community</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in communities %}
+                <tr>
+                  <td>{{ item.name }}</td>
+                  <td>
+                    {% if item.is_enabled %}
+                      <span class="badge bg-success">Enabled</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Disabled</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <form method="post" action="{% url 'option_toggle' 'community' item.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-xs btn-sm {% if item.is_enabled %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                        {% if item.is_enabled %}Disable{% else %}Enable{% endif %}
+                      </button>
+                    </form>
+                    <a href="{% url 'option_edit' 'community' item.id %}" class="btn btn-xs btn-sm btn-outline-secondary">Edit</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="3" class="text-center text-muted">No communities defined.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Source Codes -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Source Codes</h5>
+        <a href="{% url 'option_create' 'source_code' %}" class="btn btn-sm btn-primary">+ Add Source Code</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0">
+            <thead>
+              <tr>
+                <th>Name / Description</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in source_codes %}
+                <tr>
+                  <td>{{ item.name }}</td>
+                  <td>
+                    {% if item.is_enabled %}
+                      <span class="badge bg-success">Enabled</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Disabled</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <form method="post" action="{% url 'option_toggle' 'source_code' item.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-xs btn-sm {% if item.is_enabled %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                        {% if item.is_enabled %}Disable{% else %}Enable{% endif %}
+                      </button>
+                    </form>
+                    <a href="{% url 'option_edit' 'source_code' item.id %}" class="btn btn-xs btn-sm btn-outline-secondary">Edit</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="3" class="text-center text-muted">No source codes defined.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share With Options -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Share With Options</h5>
+        <a href="{% url 'option_create' 'share_option' %}" class="btn btn-sm btn-primary">+ Add Share Option</a>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0">
+            <thead>
+              <tr>
+                <th>Name / Region</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in share_options %}
+                <tr>
+                  <td>{{ item.name }}</td>
+                  <td>
+                    {% if item.is_enabled %}
+                      <span class="badge bg-success">Enabled</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Disabled</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <form method="post" action="{% url 'option_toggle' 'share_option' item.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-xs btn-sm {% if item.is_enabled %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                        {% if item.is_enabled %}Disable{% else %}Enable{% endif %}
+                      </button>
+                    </form>
+                    <a href="{% url 'option_edit' 'share_option' item.id %}" class="btn btn-xs btn-sm btn-outline-secondary">Edit</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="3" class="text-center text-muted">No share options defined.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
