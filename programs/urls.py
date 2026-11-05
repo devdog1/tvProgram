@@ -8,6 +8,7 @@ urlpatterns = [
     # Programs CRUD & details
     path("programs/", views.program_list, name="program_list"),
     path("programs/new/", views.program_create, name="program_create"),
+    path("programs/import/", views.program_bulk_import, name="program_bulk_import"),
     path("programs/<int:pk>/", views.program_detail, name="program_detail"),
     path("programs/<int:pk>/edit/", views.program_edit, name="program_edit"),
     path("programs/<int:pk>/delete/", views.program_delete, name="program_delete"),

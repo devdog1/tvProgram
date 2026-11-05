@@ -1,0 +1,14 @@
+# WCGtv Platform Dependencies
+Django>=5.0,<6.2
+asgiref>=3.8.0
+sqlparse>=0.5.0
+typing_extensions>=4.12.0
+
+# WSGI HTTP Server for production deployment
+gunicorn>=21.2.0
+
+# Optional Database Connectors
+mysqlclient>=2.2.0
+
+# Testing & Browser Automation (Optional / Dev)
+playwright>=1.40.0

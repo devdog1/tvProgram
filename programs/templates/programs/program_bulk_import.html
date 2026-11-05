@@ -1,0 +1,144 @@
+{% extends 'programs/base.html' %}
+
+{% block title %}Bulk CSV Import - WCGtv{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+  <div class="col">
+    <h2 class="h3 mb-1"><i class="bi bi-file-earmark-spreadsheet text-primary me-2"></i>Bulk CSV Program Import</h2>
+    <p class="text-muted mb-0">Batch import multiple program metadata records using CSV format.</p>
+  </div>
+  <div class="col-auto">
+    <a href="{% url 'program_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back to Programs
+    </a>
+  </div>
+</div>
+
+{% if results %}
+  <div class="mb-4">
+    {% if results.imported > 0 %}
+      <div class="alert alert-success d-flex align-items-center" role="alert">
+        <i class="bi bi-check-circle-fill fs-4 me-2"></i>
+        <div>
+          <strong>Success!</strong> Successfully imported <strong>{{ results.imported }}</strong> program(s).
+        </div>
+      </div>
+    {% endif %}
+
+    {% if results.errors %}
+      <div class="card border-danger shadow-sm mb-4">
+        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+          <span class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Import Issues ({{ results.errors|length }})</span>
+        </div>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush font-monospace small">
+            {% for err in results.errors %}
+              <li class="list-group-item text-danger py-2">{{ err }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="netbox-card">
+      <div class="netbox-card-header">
+        <span class="netbox-card-title"><i class="bi bi-upload me-2"></i>CSV Upload or Direct Paste</span>
+      </div>
+      <div class="netbox-card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="{{ form.csv_file.id_for_label }}">
+              {{ form.csv_file.label }}
+            </label>
+            {{ form.csv_file }}
+            {% if form.csv_file.help_text %}
+              <div class="form-text">{{ form.csv_file.help_text }}</div>
+            {% endif %}
+            {% if form.csv_file.errors %}
+              <div class="text-danger small">{{ form.csv_file.errors }}</div>
+            {% endif %}
+          </div>
+
+          <div class="text-center my-3 text-muted fw-bold">-- OR --</div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="{{ form.csv_text.id_for_label }}">
+              {{ form.csv_text.label }}
+            </label>
+            {{ form.csv_text }}
+            {% if form.csv_text.help_text %}
+              <div class="form-text">{{ form.csv_text.help_text }}</div>
+            {% endif %}
+            {% if form.csv_text.errors %}
+              <div class="text-danger small">{{ form.csv_text.errors }}</div>
+            {% endif %}
+          </div>
+
+          <div class="card bg-light p-3 mb-4 border">
+            <div class="form-check mb-2">
+              {{ form.preserve_ids }}
+              <label class="form-check-label fw-semibold" for="{{ form.preserve_ids.id_for_label }}">
+                {{ form.preserve_ids.label }}
+              </label>
+              <div class="form-text mt-0">{{ form.preserve_ids.help_text }}</div>
+            </div>
+
+            <div class="form-check">
+              {{ form.skip_errors }}
+              <label class="form-check-label fw-semibold" for="{{ form.skip_errors.id_for_label }}">
+                {{ form.skip_errors.label }}
+              </label>
+              <div class="form-text mt-0">{{ form.skip_errors.help_text }}</div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'program_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-box-arrow-in-down me-1"></i>Import Programs
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="netbox-card">
+      <div class="netbox-card-header">
+        <span class="netbox-card-title"><i class="bi bi-info-circle me-2"></i>CSV Format Reference</span>
+      </div>
+      <div class="netbox-card-body small">
+        <p>The CSV header row must include columns matching the WCGtv schema:</p>
+        <pre class="bg-light p-2 rounded border small">id,created,title,dateRecorded,expiryDate,producer,length,category,community,sourceCode,share,filename,comments</pre>
+
+        <h6 class="fw-bold mt-3 mb-1">Column Specifications:</h6>
+        <ul class="ps-3 mb-0">
+          <li><strong>title</strong>: Required string</li>
+          <li><strong>dateRecorded</strong>: Required date (<code>YYYY-MM-DD</code>)</li>
+          <li><strong>expiryDate</strong>: Optional date (<code>YYYY-MM-DD</code>)</li>
+          <li><strong>producer</strong>: Required string</li>
+          <li><strong>length</strong>: Required time format (<code>HH:MM:SS</code>)</li>
+          <li><strong>filename</strong>: Required file name with valid extension (e.g. <code>show.mp4</code>)</li>
+          <li><strong>category</strong>: Optional category (e.g. <code>sports</code>, <code>arts/music</code>)</li>
+          <li><strong>community</strong>: Optional comma-separated list of communities</li>
+          <li><strong>share</strong>: Optional comma-separated list of share targets</li>
+          <li><strong>sourceCode</strong>: Optional source code string</li>
+          <li><strong>comments</strong>: Optional notes (max 255 chars)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

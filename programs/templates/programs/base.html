@@ -41,6 +41,11 @@
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'program_bulk_import' %}active{% endif %}" href="{% url 'program_bulk_import' %}">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Bulk CSV Import
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link {% if 'series' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'series_list' %}">
             <i class="bi bi-collection-play"></i> TV Series & Multi-part
           </a>

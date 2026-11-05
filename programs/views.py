@@ -27,6 +27,7 @@ from .forms import (
     SourceCodeForm,
     ShareOptionForm,
     EventHookForm,
+    BulkProgramImportForm,
 )
 from .services import (
     log_change,
@@ -34,6 +35,7 @@ from .services import (
     can_delete_program,
     can_sign_off,
     trigger_event_hooks,
+    process_bulk_program_csv,
 )
 
 
@@ -281,6 +283,57 @@ def program_delete(request, pk):
         return redirect("program_list")
 
     return render(request, "programs/program_confirm_delete.html", {"program": program})
+
+
+@login_required
+@permission_required("programs.add_program", raise_exception=True)
+def program_bulk_import(request):
+    """
+    Bulk CSV Import View for Programs.
+    Supports CSV file upload or direct text paste.
+    """
+    results = None
+    if request.method == "POST":
+        form = BulkProgramImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = form.cleaned_data.get("csv_file")
+            csv_text = form.cleaned_data.get("csv_text")
+            preserve_ids = form.cleaned_data.get("preserve_ids")
+            skip_errors = form.cleaned_data.get("skip_errors")
+
+            content = ""
+            if csv_file:
+                content = csv_file.read().decode("utf-8-sig", errors="replace")
+            elif csv_text:
+                content = csv_text
+
+            results = process_bulk_program_csv(
+                csv_content=content,
+                user=request.user,
+                preserve_ids=preserve_ids,
+                skip_errors=skip_errors,
+            )
+
+            if results["imported"] > 0:
+                messages.success(request, f"Successfully imported {results['imported']} program(s).")
+            if results["errors"]:
+                if results["imported"] == 0:
+                    messages.error(request, f"Import failed with {len(results['errors'])} error(s).")
+                else:
+                    messages.warning(request, f"Completed with {len(results['errors'])} issue(s) encountered.")
+    else:
+        sample_csv = (
+            'id,created,title,dateRecorded,expiryDate,producer,length,category,community,sourceCode,share,filename,comments\n'
+            '1,"2015-03-10 16:47:28",Sample Program 1,2015-02-02,,fred,01:02:03,sports,"Brandon,Carberry",a - Single Camera/No Editing,All,sample1.mp4,First imported program\n'
+            '2,"2015-03-10 16:55:48",Sample Program 2,2015-03-11,,fred,01:02:03,sports,,,All,sample2.mp4,'
+        )
+        form = BulkProgramImportForm(initial={"csv_text": sample_csv})
+
+    return render(
+        request,
+        "programs/program_bulk_import.html",
+        {"form": form, "results": results},
+    )
 
 
 @login_required

@@ -170,6 +170,49 @@ class CommunityForm(forms.ModelForm):
         }
 
 
+class BulkProgramImportForm(forms.Form):
+    csv_file = forms.FileField(
+        required=False,
+        label="Upload CSV File",
+        widget=forms.FileInput(attrs={"class": "form-control", "accept": ".csv,text/csv"}),
+        help_text="Upload a .csv file containing programs metadata",
+    )
+    csv_text = forms.CharField(
+        required=False,
+        label="Or Paste CSV Data",
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control font-monospace",
+                "rows": 10,
+                "placeholder": 'id,created,title,dateRecorded,expiryDate,producer,length,category,community,sourceCode,share,filename,comments\n1,"2015-03-10 16:47:28",Title,2015-02-02,,fred,01:02:03,sports,,,,asfhnafuopsgdhosgdu90sgd.mp4,',
+            }
+        ),
+        help_text="Paste CSV content directly here. Must include header row.",
+    )
+    preserve_ids = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Preserve existing IDs if provided (and not colliding)",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="If checked and ID does not already exist, the program will be created with the specified ID.",
+    )
+    skip_errors = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Skip invalid rows and continue importing valid ones",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="If unchecked, the entire import will fail if any row has validation errors.",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        csv_file = cleaned_data.get("csv_file")
+        csv_text = cleaned_data.get("csv_text")
+        if not csv_file and not (csv_text and csv_text.strip()):
+            raise forms.ValidationError("Please upload a CSV file or paste CSV content.")
+        return cleaned_data
+
+
 class EventHookForm(forms.ModelForm):
     class Meta:
         model = EventHook

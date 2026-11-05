@@ -128,3 +128,190 @@ def trigger_event_hooks(event_name, instance, user=None, details=""):
             hook.save(update_fields=["last_triggered_at"])
         except Exception:
             pass
+
+
+def process_bulk_program_csv(csv_content, user=None, preserve_ids=False, skip_errors=True):
+    """
+    Parses and imports programs from CSV text.
+    Handles columns matching PHP index/database:
+    id, created, title, dateRecorded, expiryDate, producer, length, category,
+    community, sourceCode, share, filename, comments
+    """
+    import csv
+    import io
+    import re
+    from datetime import datetime
+    from django.utils import timezone
+    from django.db import transaction
+    from .models import Program
+
+    reader = csv.DictReader(io.StringIO(csv_content))
+    # Normalize headers by stripping whitespace and lowercasing for lookup
+    if not reader.fieldnames:
+        return {"success": False, "imported": 0, "errors": ["CSV content is empty or has no header row."]}
+
+    # Map normalized header name to original field name
+    header_map = {fn.strip().lower(): fn for fn in reader.fieldnames if fn}
+
+    def get_val(row, *aliases):
+        for alias in aliases:
+            low = alias.lower()
+            if low in header_map:
+                actual_key = header_map[low]
+                val = row.get(actual_key)
+                if val is not None:
+                    return str(val).strip()
+        return ""
+
+    time_regex = re.compile(r"^\d{2}:\d{2}:\d{2}$")
+    filename_regex = re.compile(r'^[^\\/:*?"<>|]+\.[a-zA-Z0-9]{1,5}$')
+    date_regex = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+    imported_programs = []
+    errors = []
+    row_number = 1  # 1 is header
+
+    for row in reader:
+        row_number += 1
+        # Skip completely empty rows
+        if not any(v.strip() for v in row.values() if v):
+            continue
+
+        row_errors = []
+        raw_id = get_val(row, "id")
+        raw_created = get_val(row, "created", "created_at")
+        title = get_val(row, "title")
+        date_recorded_str = get_val(row, "dateRecorded", "date_recorded", "recorded_date")
+        expiry_date_str = get_val(row, "expiryDate", "expiry_date")
+        producer = get_val(row, "producer")
+        length = get_val(row, "length", "duration")
+        category = get_val(row, "category")
+        community = get_val(row, "community")
+        source_code = get_val(row, "sourceCode", "source_code")
+        share = get_val(row, "share", "share_with")
+        filename = get_val(row, "filename")
+        comments = get_val(row, "comments", "notes")
+
+        # Validation checks
+        if not title:
+            row_errors.append("Title is required.")
+        if not producer:
+            row_errors.append("Producer is required.")
+
+        # Date recorded
+        date_recorded = None
+        if not date_recorded_str:
+            row_errors.append("Date Recorded is required.")
+        else:
+            # Handle YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
+            date_match = date_regex.match(date_recorded_str[:10])
+            if not date_match:
+                row_errors.append(f"Invalid Date Recorded '{date_recorded_str}'. Expected YYYY-MM-DD.")
+            else:
+                try:
+                    date_recorded = datetime.strptime(date_recorded_str[:10], "%Y-%m-%d").date()
+                except ValueError:
+                    row_errors.append(f"Invalid Date Recorded date value '{date_recorded_str}'.")
+
+        # Expiry date
+        expiry_date = None
+        if expiry_date_str:
+            date_match = date_regex.match(expiry_date_str[:10])
+            if not date_match:
+                row_errors.append(f"Invalid Expiry Date '{expiry_date_str}'. Expected YYYY-MM-DD.")
+            else:
+                try:
+                    expiry_date = datetime.strptime(expiry_date_str[:10], "%Y-%m-%d").date()
+                except ValueError:
+                    row_errors.append(f"Invalid Expiry Date date value '{expiry_date_str}'.")
+
+        # Length validation
+        if not length:
+            row_errors.append("Length is required.")
+        elif not time_regex.match(length):
+            row_errors.append(f"Invalid length '{length}'. Must be in HH:MM:SS format.")
+
+        # Filename validation
+        if not filename:
+            row_errors.append("Filename is required.")
+        elif not filename_regex.match(filename):
+            row_errors.append(f"Invalid filename '{filename}'. Must be valid with an extension (e.g. myfile.mp4).")
+
+        # Comments validation
+        if len(comments) > 255:
+            row_errors.append(f"Comments too long ({len(comments)} chars, max 255).")
+
+        if row_errors:
+            errors.append(f"Row {row_number}: " + "; ".join(row_errors))
+            if not skip_errors:
+                return {
+                    "success": False,
+                    "imported": 0,
+                    "errors": errors,
+                }
+            continue
+
+        # Create program object
+        program = Program(
+            title=title,
+            date_recorded=date_recorded,
+            expiry_date=expiry_date,
+            producer=producer,
+            length=length,
+            category=category,
+            community=community,
+            source_code=source_code,
+            share=share,
+            filename=filename,
+            comments=comments,
+            created_by=user if (user and user.is_authenticated) else None,
+            status="draft",
+        )
+
+        # Handle ID preservation
+        if preserve_ids and raw_id and raw_id.isdigit():
+            req_id = int(raw_id)
+            if not Program.objects.filter(id=req_id).exists():
+                program.id = req_id
+
+        # Handle created date if provided
+        created_dt = None
+        if raw_created:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    created_dt = datetime.strptime(raw_created, fmt)
+                    if timezone.is_naive(created_dt):
+                        created_dt = timezone.make_aware(created_dt)
+                    break
+                except ValueError:
+                    pass
+
+        try:
+            program.save()
+            if created_dt:
+                Program.objects.filter(pk=program.pk).update(created=created_dt)
+
+            log_change(
+                user,
+                "Created",
+                program,
+                changes_dict={"source": "Bulk CSV Import", "row": row_number, "filename": filename},
+            )
+            trigger_event_hooks("program_created", program, user, details="Created via Bulk CSV Import")
+            imported_programs.append(program)
+        except Exception as e:
+            err_msg = f"Row {row_number} (Title: '{title}'): Failed to save - {str(e)}"
+            errors.append(err_msg)
+            if not skip_errors:
+                return {
+                    "success": False,
+                    "imported": 0,
+                    "errors": errors,
+                }
+
+    return {
+        "success": len(imported_programs) > 0 or len(errors) == 0,
+        "imported": len(imported_programs),
+        "imported_programs": imported_programs,
+        "errors": errors,
+    }

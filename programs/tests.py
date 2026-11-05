@@ -351,3 +351,63 @@ class WCGtvComprehensiveTests(TestCase):
         # Verify hook last_triggered_at was updated
         hook.refresh_from_db()
         self.assertIsNotNone(hook.last_triggered_at)
+
+    # 9. Bulk CSV Import Tests
+    def test_bulk_csv_import_success(self):
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        csv_data = (
+            'id,created,title,dateRecorded,expiryDate,producer,length,category,community,sourceCode,share,filename,comments\n'
+            '100,"2015-03-10 16:47:28",Soccer Match 1,2015-02-02,,fred,01:02:03,sports,,,,asfhnafuopsgdhosgdu90sgd.mp4,\n'
+            '101,"2015-03-10 16:55:48",Soccer Match 2,2015-03-11,,fred,01:02:03,sports,,,,asfhnafuopsgdhosgdu90sgd.mp4,"Imported comment"'
+        )
+
+        resp = client.post(
+            reverse("program_bulk_import"),
+            {
+                "csv_text": csv_data,
+                "preserve_ids": True,
+                "skip_errors": True,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        p1 = Program.objects.get(id=100)
+        self.assertEqual(p1.title, "Soccer Match 1")
+        self.assertEqual(str(p1.date_recorded), "2015-02-02")
+        self.assertEqual(p1.producer, "fred")
+        self.assertEqual(p1.length, "01:02:03")
+        self.assertEqual(p1.category, "sports")
+        self.assertEqual(p1.filename, "asfhnafuopsgdhosgdu90sgd.mp4")
+
+        p2 = Program.objects.get(id=101)
+        self.assertEqual(p2.title, "Soccer Match 2")
+        self.assertEqual(p2.comments, "Imported comment")
+
+        # Verify ChangeLog was written for the import
+        log1 = ChangeLog.objects.filter(object_id="100", action="Created").first()
+        self.assertIsNotNone(log1)
+
+    def test_bulk_csv_import_invalid_row_handling(self):
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        bad_csv_data = (
+            'id,created,title,dateRecorded,expiryDate,producer,length,category,community,sourceCode,share,filename,comments\n'
+            ',,Invalid Time Program,2025-01-01,,producer1,99:99,sports,,,,valid.mp4,\n'
+            ',,Valid Bulk Program,2025-01-01,,producer2,00:30:00,sports,,,,valid.mp4,'
+        )
+
+        resp = client.post(
+            reverse("program_bulk_import"),
+            {
+                "csv_text": bad_csv_data,
+                "skip_errors": True,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        # 1 valid program saved, 1 skipped due to invalid time
+        self.assertTrue(Program.objects.filter(title="Valid Bulk Program").exists())
+        self.assertFalse(Program.objects.filter(title="Invalid Time Program").exists())
+        self.assertIn("Invalid length '99:99'", resp.context["results"]["errors"][0])
