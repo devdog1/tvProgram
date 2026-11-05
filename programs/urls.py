@@ -43,6 +43,7 @@ urlpatterns = [
 
     # Metadata System Options
     path("options/", views.manage_options, name="manage_options"),
+    path("options/", views.manage_options, name="options_dashboard"),
     path("options/<str:model_name>/new/", views.option_create, name="option_create"),
     path("options/<str:model_name>/<int:pk>/edit/", views.option_edit, name="option_edit"),
     path("options/<str:model_name>/<int:pk>/toggle/", views.option_toggle, name="option_toggle"),

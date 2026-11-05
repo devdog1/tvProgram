@@ -241,6 +241,12 @@ def program_detail(request, pk):
         for f in active_custom_fields
     ]
 
+    # Fetch ChangeLog entries for this specific program
+    change_logs = ChangeLog.objects.filter(
+        object_type="Program",
+        object_id=str(program.id),
+    ).order_by("-timestamp")
+
     return render(
         request,
         "programs/program_detail.html",
@@ -251,6 +257,7 @@ def program_detail(request, pk):
             "user_can_approve": user_can_approve,
             "can_signoff_action": user_can_approve or user_can_edit,
             "custom_fields_data": custom_fields_data,
+            "change_logs": change_logs,
         },
     )
 

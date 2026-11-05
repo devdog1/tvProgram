@@ -514,3 +514,69 @@ class WCGtvComprehensiveTests(TestCase):
         resp3 = client.get(reverse("program_list") + "?per_page=50&page=3")
         self.assertEqual(resp3.status_code, 200)
         self.assertEqual(len(resp3.context["programs"]), 20)
+
+    # 11. Change Log displayed on Program Detail page test
+    def test_changelog_displayed_on_program_detail(self):
+        program = Program.objects.create(
+            title="Detailed Program With History",
+            date_recorded="2025-05-01",
+            producer="Jane Producer",
+            length="00:25:00",
+            filename="detailed_history.mp4",
+            created_by=self.creator_user,
+        )
+
+        # Generate some ChangeLog entries for this program
+        ChangeLog.objects.create(
+            user=self.creator_user,
+            user_display="creator",
+            action="Created",
+            object_type="Program",
+            object_id=str(program.id),
+            object_repr=str(program),
+            details='{"title": "Detailed Program With History"}',
+        )
+        ChangeLog.objects.create(
+            user=self.editor_user,
+            user_display="editor",
+            action="Updated",
+            object_type="Program",
+            object_id=str(program.id),
+            object_repr=str(program),
+            details='{"fields_changed": ["producer"]}',
+        )
+
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        resp = client.get(reverse("program_detail", kwargs={"pk": program.pk}))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("change_logs", resp.context)
+        self.assertEqual(len(resp.context["change_logs"]), 2)
+
+        content = resp.content.decode("utf-8")
+        self.assertIn(f"Change Log for Program #{program.id}", content)
+        self.assertIn("Detailed Program With History", content)
+        self.assertIn("fields_changed", content)
+        self.assertIn("editor", content)
+
+    # 12. Options creation and URL reversal tests
+    def test_options_create_and_reverse_url(self):
+        client = Client()
+        client.login(username="editor", password="password123")
+
+        # GET options/category/new/
+        resp = client.get(reverse("option_create", kwargs={"model_name": "category"}))
+        self.assertEqual(resp.status_code, 200)
+
+        # POST new category
+        post_resp = client.post(
+            reverse("option_create", kwargs={"model_name": "category"}),
+            {"name": "science", "display_name": "Science & Tech", "is_enabled": True},
+        )
+        self.assertEqual(post_resp.status_code, 302)
+        self.assertTrue(Category.objects.filter(name="science").exists())
+
+        # Test both manage_options and options_dashboard reversibility
+        self.assertEqual(reverse("manage_options"), "/options/")
+        self.assertEqual(reverse("options_dashboard"), "/options/")

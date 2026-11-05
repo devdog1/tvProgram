@@ -160,6 +160,64 @@
         </table>
       </div>
     </div>
+
+    <!-- Program-Specific Change Log -->
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history me-1"></i> Change Log for Program #{{ program.id }}</span>
+        <span class="badge bg-secondary">{{ change_logs|length }} entries</span>
+      </div>
+      <div class="nb-card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0 small">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 25%;">Timestamp</th>
+                <th style="width: 20%;">User</th>
+                <th style="width: 20%;">Action</th>
+                <th style="width: 35%;">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in change_logs %}
+              <tr>
+                <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                <td>
+                  <span class="badge bg-light text-dark border">
+                    <i class="bi bi-person me-1"></i>{{ log.user_display|default:"System" }}
+                  </span>
+                </td>
+                <td>
+                  {% if log.action == 'Created' %}
+                    <span class="badge bg-success">Created</span>
+                  {% elif log.action == 'Updated' %}
+                    <span class="badge bg-info text-dark">Updated</span>
+                  {% elif log.action == 'Signed Off' %}
+                    <span class="badge bg-primary">Signed Off</span>
+                  {% elif log.action == 'Rejected' %}
+                    <span class="badge bg-danger">Rejected</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ log.action }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if log.details %}
+                    <code class="text-muted" style="font-size: 0.75rem; word-break: break-all;">{{ log.details }}</code>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted py-3">No change log records found for this program.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Right column: Series link, Sign-off Status, Attachments -->
