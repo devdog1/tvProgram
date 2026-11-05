@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Q
 
@@ -83,30 +85,142 @@ def dashboard_view(request):
 
 @login_required
 def program_list(request):
-    programs = Program.objects.select_related("series", "created_by").all()
+    """
+    Optimized program listing view capable of handling many 10,000s of programs.
+    Uses database-level filtering, ordering, and server-side pagination with Paginator.
+    Supports comprehensive search and filter criteria:
+    - Text query `q` (matching title, producer, filename, comments, community, source code)
+    - Status filter
+    - Category filter
+    - Community filter
+    - Source code filter
+    - Date recorded range (date_from and date_to)
+    - Sorting by various fields
+    - Configurable page size (25, 50, 100, 200)
+    """
+    qs = Program.objects.select_related("series", "created_by")
+
     q = request.GET.get("q", "").strip()
     status_filter = request.GET.get("status", "").strip()
+    category_filter = request.GET.get("category", "").strip()
+    community_filter = request.GET.get("community", "").strip()
+    source_code_filter = request.GET.get("source_code", "").strip()
+    date_from = request.GET.get("date_from", "").strip()
+    date_to = request.GET.get("date_to", "").strip()
+    sort_by = request.GET.get("sort", "-id")
+
+    # Allowed sorting fields
+    allowed_sorts = {
+        "-id": "-id",
+        "id": "id",
+        "title": "title",
+        "-title": "-title",
+        "date_recorded": "date_recorded",
+        "-date_recorded": "-date_recorded",
+        "producer": "producer",
+        "-producer": "-producer",
+        "category": "category",
+        "-category": "-category",
+        "status": "status",
+        "-status": "-status",
+    }
+    order_field = allowed_sorts.get(sort_by, "-id")
 
     if q:
-        programs = programs.filter(
+        qs = qs.filter(
             Q(title__icontains=q)
             | Q(producer__icontains=q)
             | Q(filename__icontains=q)
             | Q(comments__icontains=q)
+            | Q(community__icontains=q)
+            | Q(source_code__icontains=q)
             | Q(series__title__icontains=q)
         )
 
     if status_filter:
-        programs = programs.filter(status=status_filter)
+        qs = qs.filter(status=status_filter)
 
-    # Attach user permissions for template conditional rendering
-    programs_with_perms = []
-    for p in programs:
-        p.user_can_edit = can_edit_program(request.user, p)
-        p.user_can_delete = can_delete_program(request.user, p)
-        programs_with_perms.append(p)
+    if category_filter:
+        qs = qs.filter(category=category_filter)
 
-    return render(request, "programs/program_list.html", {"programs": programs_with_perms})
+    if community_filter:
+        qs = qs.filter(community__icontains=community_filter)
+
+    if source_code_filter:
+        qs = qs.filter(source_code=source_code_filter)
+
+    if date_from:
+        qs = qs.filter(date_recorded__gte=date_from)
+
+    if date_to:
+        qs = qs.filter(date_recorded__lte=date_to)
+
+    qs = qs.order_by(order_field)
+
+    # Pagination: default 50 items per page (customizable via per_page param: 25, 50, 100, 200)
+    per_page_param = request.GET.get("per_page", "50")
+    try:
+        per_page = int(per_page_param)
+        if per_page not in [25, 50, 100, 200]:
+            per_page = 50
+    except (ValueError, TypeError):
+        per_page = 50
+
+    paginator = Paginator(qs, per_page)
+    page_number = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages if paginator.num_pages > 0 else 1)
+
+    # Annotate only the current page's slice (e.g. 50 items instead of 100,000!)
+    is_admin_or_editor = request.user.is_superuser or request.user.has_perm("programs.change_program")
+    can_del_globally = request.user.is_superuser or request.user.has_perm("programs.delete_program")
+    user_id = request.user.id
+
+    for p in page_obj.object_list:
+        p.user_can_edit = is_admin_or_editor or (p.created_by_id == user_id)
+        p.user_can_delete = can_del_globally
+
+    categories = Category.objects.filter(is_enabled=True)
+    communities = Community.objects.filter(is_enabled=True)
+    source_codes = SourceCode.objects.filter(is_enabled=True)
+
+    # Build querystring without page for pagination links
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+    filter_querystring = query_params.urlencode()
+
+    has_active_filters = bool(
+        q or status_filter or category_filter or community_filter or source_code_filter or date_from or date_to or (sort_by != "-id")
+    )
+
+    return render(
+        request,
+        "programs/program_list.html",
+        {
+            "page_obj": page_obj,
+            "programs": page_obj.object_list,
+            "total_count": paginator.count,
+            "categories": categories,
+            "communities": communities,
+            "source_codes": source_codes,
+            "current_sort": sort_by,
+            "current_q": q,
+            "current_status": status_filter,
+            "current_category": category_filter,
+            "current_community": community_filter,
+            "current_source_code": source_code_filter,
+            "current_date_from": date_from,
+            "current_date_to": date_to,
+            "per_page": per_page,
+            "filter_querystring": filter_querystring,
+            "has_active_filters": has_active_filters,
+        },
+    )
 
 
 @login_required

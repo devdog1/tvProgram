@@ -20,14 +20,134 @@
   </div>
 </div>
 
+<!-- Comprehensive Search & Filter Card -->
+<div class="card mb-3 shadow-sm border">
+  <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+    <span class="fw-semibold small text-secondary">
+      <i class="bi bi-funnel-fill text-primary me-1"></i> Search & Filters
+    </span>
+    {% if has_active_filters %}
+      <a href="{% url 'program_list' %}" class="badge bg-secondary text-white text-decoration-none">
+        <i class="bi bi-x-circle me-1"></i>Clear all filters
+      </a>
+    {% endif %}
+  </div>
+  <div class="card-body py-3 px-3">
+    <form method="get" class="row g-2">
+      <!-- Search Query -->
+      <div class="col-md-4">
+        <label class="form-label small text-muted mb-1 fw-semibold">Keywords</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" name="q" class="form-control" placeholder="Title, producer, file, comments..." value="{{ current_q }}">
+        </div>
+      </div>
+
+      <!-- Status Filter -->
+      <div class="col-md-2">
+        <label class="form-label small text-muted mb-1 fw-semibold">Status</label>
+        <select name="status" class="form-select form-select-sm">
+          <option value="">All Statuses</option>
+          <option value="draft" {% if current_status == 'draft' %}selected{% endif %}>Draft</option>
+          <option value="pending_review" {% if current_status == 'pending_review' %}selected{% endif %}>Pending Review</option>
+          <option value="signed_off" {% if current_status == 'signed_off' %}selected{% endif %}>Signed Off</option>
+          <option value="rejected" {% if current_status == 'rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="col-md-2">
+        <label class="form-label small text-muted mb-1 fw-semibold">Category</label>
+        <select name="category" class="form-select form-select-sm">
+          <option value="">All Categories</option>
+          {% for cat in categories %}
+            <option value="{{ cat.name }}" {% if current_category == cat.name %}selected{% endif %}>{{ cat.display_name|default:cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Community Filter -->
+      <div class="col-md-2">
+        <label class="form-label small text-muted mb-1 fw-semibold">Community</label>
+        <select name="community" class="form-select form-select-sm">
+          <option value="">All Communities</option>
+          {% for comm in communities %}
+            <option value="{{ comm.name }}" {% if current_community == comm.name %}selected{% endif %}>{{ comm.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Source Code Filter -->
+      <div class="col-md-2">
+        <label class="form-label small text-muted mb-1 fw-semibold">Source Code</label>
+        <select name="source_code" class="form-select form-select-sm">
+          <option value="">All Source Codes</option>
+          {% for sc in source_codes %}
+            <option value="{{ sc.name }}" {% if current_source_code == sc.name %}selected{% endif %}>{{ sc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Date Recorded Range From -->
+      <div class="col-md-3">
+        <label class="form-label small text-muted mb-1 fw-semibold">Recorded From</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ current_date_from }}">
+      </div>
+
+      <!-- Date Recorded Range To -->
+      <div class="col-md-3">
+        <label class="form-label small text-muted mb-1 fw-semibold">Recorded To</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ current_date_to }}">
+      </div>
+
+      <!-- Sort Selection -->
+      <div class="col-md-3">
+        <label class="form-label small text-muted mb-1 fw-semibold">Order By</label>
+        <select name="sort" class="form-select form-select-sm">
+          <option value="-id" {% if current_sort == '-id' %}selected{% endif %}>Newest First (ID Desc)</option>
+          <option value="id" {% if current_sort == 'id' %}selected{% endif %}>Oldest First (ID Asc)</option>
+          <option value="title" {% if current_sort == 'title' %}selected{% endif %}>Title (A-Z)</option>
+          <option value="-title" {% if current_sort == '-title' %}selected{% endif %}>Title (Z-A)</option>
+          <option value="-date_recorded" {% if current_sort == '-date_recorded' %}selected{% endif %}>Date Recorded (Newest)</option>
+          <option value="date_recorded" {% if current_sort == 'date_recorded' %}selected{% endif %}>Date Recorded (Oldest)</option>
+          <option value="producer" {% if current_sort == 'producer' %}selected{% endif %}>Producer (A-Z)</option>
+        </select>
+      </div>
+
+      <!-- Page Size -->
+      <div class="col-md-1">
+        <label class="form-label small text-muted mb-1 fw-semibold">Page Size</label>
+        <select name="per_page" class="form-select form-select-sm">
+          <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+          <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+          <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+          <option value="200" {% if per_page == 200 %}selected{% endif %}>200</option>
+        </select>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="col-md-2 d-flex align-items-end gap-1">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+          <i class="bi bi-funnel me-1"></i> Apply
+        </button>
+        {% if has_active_filters %}
+          <a href="{% url 'program_list' %}" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
+            <i class="bi bi-x-lg"></i>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="nb-card">
-  <div class="nb-card-header nb-card-header-primary">
+  <div class="nb-card-header nb-card-header-primary d-flex justify-content-between align-items-center">
     <span><i class="bi bi-list-ul me-1"></i> Programs Listing</span>
-    <span class="badge bg-light text-dark">{{ programs|length }} Records</span>
+    <span class="badge bg-light text-dark">{{ total_count }} Total Records</span>
   </div>
   <div class="p-3">
     <div class="table-responsive">
-      <table id="programsTable" class="table table-sm table-striped table-hover align-middle border" style="width:100%; font-size: 0.85rem;">
+      <table id="programsTable" class="table table-sm table-striped table-hover align-middle border mb-0" style="width:100%; font-size: 0.85rem;">
         <thead class="table-light">
           <tr>
             <th>ID</th>
@@ -108,22 +228,54 @@
               {% endif %}
             </td>
           </tr>
+          {% empty %}
+          <tr>
+            <td colspan="15" class="text-center text-muted py-4">No programs found matching the criteria.</td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+
+    <!-- Pagination Controls -->
+    {% if page_obj.has_other_pages %}
+    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+      <small class="text-muted">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ total_count }} entries
+      </small>
+      <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page=1{% if filter_querystring %}&{{ filter_querystring }}{% endif %}">&laquo; First</a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if filter_querystring %}&{{ filter_querystring }}{% endif %}">Previous</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+
+          <li class="page-item active">
+            <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+          </li>
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if filter_querystring %}&{{ filter_querystring }}{% endif %}">Next</a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if filter_querystring %}&{{ filter_querystring }}{% endif %}">Last &raquo;</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+            <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-  $(document).ready(function () {
-    $('#programsTable').DataTable({
-      order: [[0, 'desc']],
-      pageLength: 25,
-      responsive: true
-    });
-  });
-</script>
 {% endblock %}

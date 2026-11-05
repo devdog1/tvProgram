@@ -115,10 +115,10 @@ class Program(models.Model):
         ("rejected", "Rejected"),
     ]
 
-    title = models.CharField(max_length=255)
-    date_recorded = models.DateField(db_column="dateRecorded")
-    expiry_date = models.DateField(db_column="expiryDate", null=True, blank=True)
-    producer = models.CharField(max_length=255)
+    title = models.CharField(max_length=255, db_index=True)
+    date_recorded = models.DateField(db_column="dateRecorded", db_index=True)
+    expiry_date = models.DateField(db_column="expiryDate", null=True, blank=True, db_index=True)
+    producer = models.CharField(max_length=255, db_index=True)
     length = models.CharField(
         max_length=20,
         validators=[
@@ -128,12 +128,13 @@ class Program(models.Model):
             )
         ],
     )
-    category = models.CharField(max_length=100, blank=True, null=True)
+    category = models.CharField(max_length=100, blank=True, null=True, db_index=True)
     community = models.TextField(blank=True, null=True, help_text="Comma-separated list of communities")
     share = models.TextField(blank=True, null=True, help_text="Comma-separated list of share regions")
-    source_code = models.CharField(max_length=255, db_column="sourceCode", blank=True, null=True)
+    source_code = models.CharField(max_length=255, db_column="sourceCode", blank=True, null=True, db_index=True)
     filename = models.CharField(
         max_length=255,
+        db_index=True,
         validators=[
             RegexValidator(
                 regex=r'^[^\\/:*?"<>|]+\.[a-zA-Z0-9]{1,5}$',
@@ -142,7 +143,7 @@ class Program(models.Model):
         ],
     )
     comments = models.CharField(max_length=255, blank=True, null=True)
-    created = models.DateTimeField(auto_now_add=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
 
     # User authorship
     created_by = models.ForeignKey(

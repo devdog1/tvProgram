@@ -411,3 +411,106 @@ class WCGtvComprehensiveTests(TestCase):
         self.assertTrue(Program.objects.filter(title="Valid Bulk Program").exists())
         self.assertFalse(Program.objects.filter(title="Invalid Time Program").exists())
         self.assertIn("Invalid length '99:99'", resp.context["results"]["errors"][0])
+
+    # 10. Large dataset pagination & unauthenticated layout test
+    def test_unauthenticated_user_sees_no_menu(self):
+        client = Client()
+        # GET login page
+        resp = client.get(reverse("login"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        # Ensure sidebar menu and links are NOT rendered
+        self.assertNotIn("id=\"sidebar-wrapper\"", content)
+        self.assertNotIn("Dashboard", content)
+        self.assertNotIn("Sign-off Queue", content)
+        self.assertNotIn("Bulk CSV Import", content)
+        # Ensure login form is rendered
+        self.assertIn("WCGtv Metadata Tool", content)
+        self.assertIn("Sign In", content)
+
+    def test_program_filtering_options(self):
+        # Create varied programs
+        Program.objects.create(
+            title="Brandon Football Final",
+            date_recorded="2025-05-15",
+            producer="Sports Team",
+            length="01:30:00",
+            category="sports",
+            community="Brandon",
+            source_code="a - Single Camera/No Editing",
+            filename="football.mp4",
+            status="signed_off",
+            created_by=self.creator_user,
+        )
+        Program.objects.create(
+            title="Music Showcase",
+            date_recorded="2025-06-20",
+            producer="Music Team",
+            length="00:45:00",
+            category="arts/music",
+            community="Dauphin",
+            source_code="a - Single Camera/No Editing",
+            filename="showcase.mp4",
+            status="draft",
+            created_by=self.creator_user,
+        )
+
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        # 1. Keyword search 'Football'
+        resp_q = client.get(reverse("program_list") + "?q=Football")
+        self.assertEqual(resp_q.status_code, 200)
+        self.assertEqual(len(resp_q.context["programs"]), 1)
+        self.assertEqual(resp_q.context["programs"][0].title, "Brandon Football Final")
+
+        # 2. Status filter 'draft'
+        resp_status = client.get(reverse("program_list") + "?status=draft")
+        self.assertEqual(resp_status.status_code, 200)
+        self.assertTrue(all(p.status == "draft" for p in resp_status.context["programs"]))
+
+        # 3. Category filter 'arts/music'
+        resp_cat = client.get(reverse("program_list") + "?category=arts/music")
+        self.assertEqual(resp_cat.status_code, 200)
+        self.assertTrue(all(p.category == "arts/music" for p in resp_cat.context["programs"]))
+
+        # 4. Community filter 'Brandon'
+        resp_comm = client.get(reverse("program_list") + "?community=Brandon")
+        self.assertEqual(resp_comm.status_code, 200)
+        self.assertEqual(resp_comm.context["programs"][0].title, "Brandon Football Final")
+
+        # 5. Date recorded range
+        resp_date = client.get(reverse("program_list") + "?date_from=2025-06-01&date_to=2025-06-30")
+        self.assertEqual(resp_date.status_code, 200)
+        self.assertEqual(len(resp_date.context["programs"]), 1)
+        self.assertEqual(resp_date.context["programs"][0].title, "Music Showcase")
+
+    def test_large_dataset_pagination(self):
+        # Create 120 programs efficiently with bulk_create
+        progs = [
+            Program(
+                title=f"Bulk Scale Program {i}",
+                date_recorded="2025-01-01",
+                producer="Scale Producer",
+                length="00:30:00",
+                filename=f"scale_{i}.mp4",
+                category="sports",
+                created_by=self.creator_user,
+            )
+            for i in range(120)
+        ]
+        Program.objects.bulk_create(progs)
+
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        # Request page 1 with 50 per page
+        resp = client.get(reverse("program_list") + "?per_page=50&page=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context["programs"]), 50)
+        self.assertEqual(resp.context["total_count"], 120)
+
+        # Request page 3 (remaining 20)
+        resp3 = client.get(reverse("program_list") + "?per_page=50&page=3")
+        self.assertEqual(resp3.status_code, 200)
+        self.assertEqual(len(resp3.context["programs"]), 20)

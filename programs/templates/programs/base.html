@@ -13,8 +13,9 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body>
+  {% if user.is_authenticated %}
   <div class="d-flex" id="wrapper">
-    <!-- NetBox Sidebar -->
+    <!-- NetBox Sidebar (Visible only to authenticated users) -->
     <div id="sidebar-wrapper">
       <a href="{% url 'dashboard' %}" class="sidebar-brand">
         <i class="bi bi-tv text-primary"></i>
@@ -112,17 +113,13 @@
         </form>
 
         <div class="d-flex align-items-center gap-3">
-          {% if user.is_authenticated %}
-            <span class="badge bg-secondary"><i class="bi bi-person-fill"></i> {{ user.username }}</span>
-            <form method="post" action="{% url 'logout' %}" class="d-inline">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.8rem;">
-                <i class="bi bi-box-arrow-right"></i> Logout
-              </button>
-            </form>
-          {% else %}
-            <a href="{% url 'login' %}" class="btn btn-outline-primary btn-sm">Login</a>
-          {% endif %}
+          <span class="badge bg-secondary"><i class="bi bi-person-fill"></i> {{ user.username }}</span>
+          <form method="post" action="{% url 'logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.8rem;">
+              <i class="bi bi-box-arrow-right"></i> Logout
+            </button>
+          </form>
         </div>
       </nav>
 
@@ -141,6 +138,27 @@
       </div>
     </div>
   </div>
+  {% else %}
+  <!-- Unauthenticated: No sidebar menu or top search bar, only the login box / content -->
+  <div class="min-vh-100 d-flex flex-column justify-content-center align-items-center bg-light">
+    <div class="container">
+      {% if messages %}
+        <div class="row justify-content-center mb-3">
+          <div class="col-md-5">
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }} alert-dismissible fade show py-2" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+      {% block unauth_content %}
+      {% endblock %}
+    </div>
+  </div>
+  {% endif %}
 
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
