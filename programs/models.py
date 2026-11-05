@@ -181,6 +181,9 @@ class Program(models.Model):
     class Meta:
         db_table = "programs"
         ordering = ["-id"]
+        permissions = [
+            ("can_bulk_import", "Can bulk import programs"),
+        ]
 
     def __str__(self):
         return f"{self.id} - {self.title}"
@@ -225,6 +228,11 @@ class ProgramAttachment(models.Model):
 
 
 class CustomField(models.Model):
+    TARGET_ELEMENT_CHOICES = [
+        ("program", "Program"),
+        ("series", "Series"),
+    ]
+
     FIELD_TYPE_CHOICES = [
         ("text", "Text (Single line)"),
         ("textarea", "Long Text (Multi-line)"),
@@ -232,34 +240,70 @@ class CustomField(models.Model):
         ("boolean", "Boolean (Yes/No)"),
         ("date", "Date"),
         ("url", "URL"),
+        ("file", "File Upload"),
+        ("enum", "Enum / Choices List"),
     ]
 
+    target_element = models.CharField(
+        max_length=20,
+        choices=TARGET_ELEMENT_CHOICES,
+        default="program",
+        help_text="Target element this custom field applies to (Program or Series)",
+    )
     name = models.SlugField(max_length=50, unique=True, help_text="Internal identifier (slug), e.g. license_code")
     label = models.CharField(max_length=100, help_text="User visible label, e.g. License Code")
     field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default="text")
     required = models.BooleanField(default=False)
     default_value = models.CharField(max_length=255, blank=True, null=True)
+    choices = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Comma-separated or newline-separated choices (for Enum / Choices List)",
+    )
     description = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["label"]
+        ordering = ["target_element", "label"]
 
     def __str__(self):
-        return f"{self.label} ({self.get_field_type_display()})"
+        return f"[{self.get_target_element_display()}] {self.label} ({self.get_field_type_display()})"
+
+    @property
+    def choices_list(self):
+        if not self.choices:
+            return []
+        import re
+        raw = re.split(r"[,\n\r]+", self.choices)
+        return [c.strip() for c in raw if c.strip()]
 
 
 class CustomFieldValue(models.Model):
-    program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name="custom_field_values")
+    program = models.ForeignKey(
+        Program,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="custom_field_values",
+    )
+    series = models.ForeignKey(
+        Series,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="custom_field_values",
+    )
     custom_field = models.ForeignKey(CustomField, on_delete=models.CASCADE, related_name="values")
     value = models.TextField(blank=True, null=True)
+    file_upload = models.FileField(upload_to="custom_fields/%Y/%m/", null=True, blank=True)
 
     class Meta:
-        unique_together = ("program", "custom_field")
+        unique_together = [("program", "custom_field"), ("series", "custom_field")]
 
     def __str__(self):
-        return f"{self.program.title} - {self.custom_field.label}: {self.value}"
+        parent = self.program.title if self.program else (self.series.title if self.series else "None")
+        return f"{parent} - {self.custom_field.label}: {self.value or self.file_upload}"
 
 
 class ChangeLog(models.Model):

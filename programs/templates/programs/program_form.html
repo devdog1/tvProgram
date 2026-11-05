@@ -35,7 +35,7 @@
         </span>
       </div>
       <div class="p-4">
-        <form method="post" id="programForm" novalidate>
+        <form method="post" id="programForm" enctype="multipart/form-data" novalidate>
           {% csrf_token %}
 
           {% if form.non_field_errors %}
@@ -222,6 +222,18 @@
                   <input type="number" name="custom_field_{{ cf.field.name }}" class="form-control" value="{{ cf.value }}" {% if cf.field.required %}required{% endif %}>
                 {% elif cf.field.field_type == 'url' %}
                   <input type="url" name="custom_field_{{ cf.field.name }}" class="form-control" value="{{ cf.value }}" placeholder="https://..." {% if cf.field.required %}required{% endif %}>
+                {% elif cf.field.field_type == 'enum' %}
+                  <select name="custom_field_{{ cf.field.name }}" class="form-select" {% if cf.field.required %}required{% endif %}>
+                    <option value="">-</option>
+                    {% for opt in cf.field.choices_list %}
+                      <option value="{{ opt }}" {% if cf.value == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                  </select>
+                {% elif cf.field.field_type == 'file' %}
+                  <input type="file" name="custom_field_{{ cf.field.name }}" class="form-control" {% if cf.field.required and not cf.file_url %}required{% endif %}>
+                  {% if cf.file_url %}
+                    <div class="small text-muted mt-1">Current file: <a href="{{ cf.file_url }}" target="_blank">{{ cf.value }}</a></div>
+                  {% endif %}
                 {% else %}
                   <input type="text" name="custom_field_{{ cf.field.name }}" class="form-control" value="{{ cf.value }}" {% if cf.field.required %}required{% endif %}>
                 {% endif %}

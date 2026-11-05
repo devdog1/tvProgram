@@ -9,10 +9,12 @@
     <small class="text-muted fs-6 ms-2">Registered media items and broadcasts</small>
   </div>
   <div class="d-flex gap-2">
-    {% if perms.programs.add_program or user.is_staff or user.is_superuser %}
+    {% if perms.programs.can_bulk_import or user.is_staff or user.is_superuser %}
       <a href="{% url 'program_bulk_import' %}" class="btn btn-outline-primary btn-sm">
         <i class="bi bi-file-earmark-spreadsheet me-1"></i> Bulk CSV Import
       </a>
+    {% endif %}
+    {% if perms.programs.add_program or user.is_staff or user.is_superuser %}
       <a href="{% url 'program_create' %}" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-circle me-1"></i> Add Program
       </a>

@@ -65,6 +65,55 @@
       </div>
     </div>
 
+    <!-- Custom Metadata Fields Widget for Series -->
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-dark">
+        <span><i class="bi bi-tags me-1"></i> Series Custom Metadata Attributes</span>
+      </div>
+      <div class="nb-card-body">
+        <table class="nb-table-widget">
+          <tbody>
+            {% for cf in custom_fields_data %}
+            <tr>
+              <th style="width: 30%;">{{ cf.field.label }}</th>
+              <td>
+                {% if cf.value %}
+                  {% if cf.field.field_type == 'boolean' %}
+                    {% if cf.value == 'True' or cf.value == 'true' or cf.value == '1' %}
+                      <span class="badge bg-success">Yes</span>
+                    {% else %}
+                      <span class="badge bg-secondary">No</span>
+                    {% endif %}
+                  {% elif cf.field.field_type == 'url' %}
+                    <a href="{{ cf.value }}" target="_blank">{{ cf.value }}</a>
+                  {% elif cf.field.field_type == 'enum' %}
+                    <span class="badge bg-light text-dark border">{{ cf.value }}</span>
+                  {% elif cf.field.field_type == 'file' %}
+                    {% if cf.file_url %}
+                      <a href="{{ cf.file_url }}" target="_blank" class="fw-semibold text-decoration-none">
+                        <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ cf.value }}
+                      </a>
+                    {% else %}
+                      {{ cf.value }}
+                    {% endif %}
+                  {% else %}
+                    {{ cf.value }}
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="2" class="text-muted text-center py-2">No custom metadata fields configured for series.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Episodes / Linked Programs Table -->
     <div class="nb-card">
       <div class="nb-card-header nb-card-header-dark">

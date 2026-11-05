@@ -32,7 +32,9 @@
       <div class="nb-card-header nb-card-header-dark">
         <span><i class="bi bi-film me-1"></i> Media & Programs</span>
         <div>
-          <a href="{% url 'program_bulk_import' %}" class="btn btn-xs btn-outline-light py-0 px-1 me-1" style="font-size: 0.75rem;">Import</a>
+          {% if perms.programs.can_bulk_import %}
+            <a href="{% url 'program_bulk_import' %}" class="btn btn-xs btn-outline-light py-0 px-1 me-1" style="font-size: 0.75rem;">Import</a>
+          {% endif %}
           <a href="{% url 'program_create' %}" class="btn btn-xs btn-outline-light py-0 px-1" style="font-size: 0.75rem;">+ Add</a>
         </div>
       </div>

@@ -211,6 +211,7 @@ class WCGtvComprehensiveTests(TestCase):
         client_admin.post(
             reverse("custom_field_create"),
             {
+                "target_element": "program",
                 "label": "Music License Code",
                 "name": "music_license_code",
                 "field_type": "text",
@@ -355,6 +356,9 @@ class WCGtvComprehensiveTests(TestCase):
     # 9. Bulk CSV Import Tests
     def test_bulk_csv_import_success(self):
         client = Client()
+        # Give creator the can_bulk_import permission for this test
+        p_bulk = Permission.objects.get(codename="can_bulk_import")
+        self.creator_user.user_permissions.add(p_bulk)
         client.login(username="creator", password="password123")
 
         csv_data = (
@@ -391,6 +395,8 @@ class WCGtvComprehensiveTests(TestCase):
 
     def test_bulk_csv_import_invalid_row_handling(self):
         client = Client()
+        p_bulk = Permission.objects.get(codename="can_bulk_import")
+        self.creator_user.user_permissions.add(p_bulk)
         client.login(username="creator", password="password123")
 
         bad_csv_data = (
@@ -580,3 +586,80 @@ class WCGtvComprehensiveTests(TestCase):
         # Test both manage_options and options_dashboard reversibility
         self.assertEqual(reverse("manage_options"), "/options/")
         self.assertEqual(reverse("options_dashboard"), "/options/")
+
+    # 13. Dedicated Bulk Import permission tests
+    def test_bulk_import_permission_required(self):
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        # Creator does NOT have can_bulk_import permission initially -> should return 403
+        resp_denied = client.get(reverse("program_bulk_import"))
+        self.assertEqual(resp_denied.status_code, 403)
+
+        # Grant can_bulk_import permission to creator
+        p_bulk = Permission.objects.get(codename="can_bulk_import")
+        self.creator_user.user_permissions.add(p_bulk)
+        self.creator_user = User.objects.get(pk=self.creator_user.pk)
+
+        # Now creator can access
+        resp_allowed = client.get(reverse("program_bulk_import"))
+        self.assertEqual(resp_allowed.status_code, 200)
+
+    # 14. Custom Fields with Target Element, File Upload, and Enum
+    def test_custom_fields_target_element_and_types(self):
+        # 1. Create Enum Custom Field for Program
+        enum_field = CustomField.objects.create(
+            target_element="program",
+            name="broadcast_res",
+            label="Broadcast Resolution",
+            field_type="enum",
+            choices="720p, 1080p, 4K UHD",
+            is_active=True,
+        )
+        self.assertEqual(enum_field.choices_list, ["720p", "1080p", "4K UHD"])
+
+        # 2. Create File Custom Field for Series
+        file_field = CustomField.objects.create(
+            target_element="series",
+            name="series_bible",
+            label="Series Production Bible",
+            field_type="file",
+            is_active=True,
+        )
+
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        # Submit Program with Enum value
+        resp_prog = client.post(
+            reverse("program_create"),
+            {
+                "title": "UHD Nature Doc",
+                "date_recorded": "2025-08-01",
+                "producer": "Nature Unit",
+                "length": "00:50:00",
+                "filename": "nature_uhd.mp4",
+                "custom_field_broadcast_res": "4K UHD",
+            },
+        )
+        self.assertEqual(resp_prog.status_code, 302)
+        prog = Program.objects.get(title="UHD Nature Doc")
+        cfv_prog = CustomFieldValue.objects.get(program=prog, custom_field=enum_field)
+        self.assertEqual(cfv_prog.value, "4K UHD")
+
+        # Submit Series with File Upload
+        series_file = SimpleUploadedFile("bible.pdf", b"%PDF-1.4 series bible content...", content_type="application/pdf")
+        resp_series = client.post(
+            reverse("series_create"),
+            {
+                "title": "Prairie Chronicles",
+                "series_type": "tv_series",
+                "description": "Historical drama",
+                "custom_field_series_bible": series_file,
+            },
+        )
+        self.assertEqual(resp_series.status_code, 302)
+        series = Series.objects.get(title="Prairie Chronicles")
+        cfv_series = CustomFieldValue.objects.get(series=series, custom_field=file_field)
+        self.assertTrue(bool(cfv_series.file_upload))
+        self.assertIn("bible", cfv_series.file_upload.name)

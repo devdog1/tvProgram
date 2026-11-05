@@ -233,13 +233,21 @@ def program_detail(request, pk):
     user_can_delete = can_delete_program(request.user, program)
     user_can_approve = can_sign_off(request.user)
 
-    # Custom fields data
-    active_custom_fields = CustomField.objects.filter(is_active=True)
-    existing_values = {v.custom_field_id: v.value for v in program.custom_field_values.all()}
-    custom_fields_data = [
-        {"field": f, "value": existing_values.get(f.id, f.default_value or "")}
-        for f in active_custom_fields
-    ]
+    # Custom fields data for Program target element
+    active_custom_fields = CustomField.objects.filter(is_active=True, target_element="program")
+    existing_val_objs = {v.custom_field_id: v for v in program.custom_field_values.all()}
+    custom_fields_data = []
+    for f in active_custom_fields:
+        val_obj = existing_val_objs.get(f.id)
+        val_str = ""
+        file_url = ""
+        if val_obj:
+            val_str = val_obj.value or (val_obj.file_upload.name.split("/")[-1] if val_obj.file_upload else "")
+            if val_obj.file_upload:
+                file_url = val_obj.file_upload.url
+        else:
+            val_str = f.default_value or ""
+        custom_fields_data.append({"field": f, "value": val_str, "file_url": file_url})
 
     # Fetch ChangeLog entries for this specific program
     change_logs = ChangeLog.objects.filter(
@@ -265,7 +273,7 @@ def program_detail(request, pk):
 @login_required
 @permission_required("programs.add_program", raise_exception=True)
 def program_create(request):
-    active_custom_fields = CustomField.objects.filter(is_active=True)
+    active_custom_fields = CustomField.objects.filter(is_active=True, target_element="program")
 
     if request.method == "POST":
         form = ProgramForm(request.POST)
@@ -276,9 +284,19 @@ def program_create(request):
 
             # Save custom fields
             for cf in active_custom_fields:
-                val = request.POST.get(f"custom_field_{cf.name}", "").strip()
-                if val:
-                    CustomFieldValue.objects.create(program=program, custom_field=cf, value=val)
+                if cf.field_type == "file":
+                    file_obj = request.FILES.get(f"custom_field_{cf.name}")
+                    if file_obj:
+                        CustomFieldValue.objects.create(
+                            program=program,
+                            custom_field=cf,
+                            file_upload=file_obj,
+                            value=file_obj.name,
+                        )
+                else:
+                    val = request.POST.get(f"custom_field_{cf.name}", "").strip()
+                    if val:
+                        CustomFieldValue.objects.create(program=program, custom_field=cf, value=val)
 
             log_change(
                 user=request.user,
@@ -307,7 +325,7 @@ def program_create(request):
         form = ProgramForm(initial=initial)
 
     custom_field_inputs = [
-        {"field": cf, "value": cf.default_value or ""}
+        {"field": cf, "value": cf.default_value or "", "file_url": ""}
         for cf in active_custom_fields
     ]
 
@@ -325,7 +343,7 @@ def program_edit(request, pk):
     if not can_edit_program(request.user, program):
         raise PermissionDenied("You do not have permission to edit this program.")
 
-    active_custom_fields = CustomField.objects.filter(is_active=True)
+    active_custom_fields = CustomField.objects.filter(is_active=True, target_element="program")
     existing_values_map = {
         cfv.custom_field_id: cfv for cfv in program.custom_field_values.all()
     }
@@ -338,16 +356,33 @@ def program_edit(request, pk):
             # Handle custom fields update
             changes_cf = {}
             for cf in active_custom_fields:
-                new_val = request.POST.get(f"custom_field_{cf.name}", "").strip()
-                cfv = existing_values_map.get(cf.id)
-                if cfv:
-                    if cfv.value != new_val:
-                        changes_cf[cf.label] = {"from": cfv.value, "to": new_val}
-                        cfv.value = new_val
-                        cfv.save()
-                elif new_val:
-                    CustomFieldValue.objects.create(program=updated_program, custom_field=cf, value=new_val)
-                    changes_cf[cf.label] = {"from": "", "to": new_val}
+                if cf.field_type == "file":
+                    file_obj = request.FILES.get(f"custom_field_{cf.name}")
+                    if file_obj:
+                        cfv = existing_values_map.get(cf.id)
+                        if cfv:
+                            cfv.file_upload = file_obj
+                            cfv.value = file_obj.name
+                            cfv.save()
+                        else:
+                            CustomFieldValue.objects.create(
+                                program=updated_program,
+                                custom_field=cf,
+                                file_upload=file_obj,
+                                value=file_obj.name,
+                            )
+                        changes_cf[cf.label] = f"Updated file: {file_obj.name}"
+                else:
+                    new_val = request.POST.get(f"custom_field_{cf.name}", "").strip()
+                    cfv = existing_values_map.get(cf.id)
+                    if cfv:
+                        if cfv.value != new_val:
+                            changes_cf[cf.label] = {"from": cfv.value, "to": new_val}
+                            cfv.value = new_val
+                            cfv.save()
+                    elif new_val:
+                        CustomFieldValue.objects.create(program=updated_program, custom_field=cf, value=new_val)
+                        changes_cf[cf.label] = {"from": "", "to": new_val}
 
             log_change(
                 user=request.user,
@@ -367,13 +402,12 @@ def program_edit(request, pk):
     else:
         form = ProgramForm(instance=program)
 
-    custom_field_inputs = [
-        {
-            "field": cf,
-            "value": existing_values_map.get(cf.id).value if cf.id in existing_values_map else (cf.default_value or ""),
-        }
-        for cf in active_custom_fields
-    ]
+    custom_field_inputs = []
+    for cf in active_custom_fields:
+        cfv = existing_values_map.get(cf.id)
+        val = cfv.value if cfv else (cf.default_value or "")
+        f_url = cfv.file_upload.url if (cfv and cfv.file_upload) else ""
+        custom_field_inputs.append({"field": cf, "value": val, "file_url": f_url})
 
     return render(
         request,
@@ -407,11 +441,12 @@ def program_delete(request, pk):
 
 
 @login_required
-@permission_required("programs.add_program", raise_exception=True)
+@permission_required("programs.can_bulk_import", raise_exception=True)
 def program_bulk_import(request):
     """
     Bulk CSV Import View for Programs.
     Supports CSV file upload or direct text paste.
+    Requires dedicated programs.can_bulk_import permission.
     """
     results = None
     if request.method == "POST":
@@ -576,42 +611,127 @@ def series_list(request):
 def series_detail(request, pk):
     series = get_object_or_404(Series.objects.prefetch_related("episodes").select_related("created_by", "signed_off_by"), pk=pk)
     user_can_approve = can_sign_off(request.user)
+
+    # Custom fields data for Series target element
+    active_custom_fields = CustomField.objects.filter(is_active=True, target_element="series")
+    existing_val_objs = {v.custom_field_id: v for v in series.custom_field_values.all()}
+    custom_fields_data = []
+    for f in active_custom_fields:
+        val_obj = existing_val_objs.get(f.id)
+        val_str = ""
+        file_url = ""
+        if val_obj:
+            val_str = val_obj.value or (val_obj.file_upload.name.split("/")[-1] if val_obj.file_upload else "")
+            if val_obj.file_upload:
+                file_url = val_obj.file_upload.url
+        else:
+            val_str = f.default_value or ""
+        custom_fields_data.append({"field": f, "value": val_str, "file_url": file_url})
+
     return render(
         request,
         "programs/series_detail.html",
-        {"series": series, "user_can_approve": user_can_approve},
+        {"series": series, "user_can_approve": user_can_approve, "custom_fields_data": custom_fields_data},
     )
 
 
 @login_required
 def series_create(request):
+    active_custom_fields = CustomField.objects.filter(is_active=True, target_element="series")
     if request.method == "POST":
         form = SeriesForm(request.POST)
         if form.is_valid():
             series = form.save(commit=False)
             series.created_by = request.user
             series.save()
+
+            # Save series custom fields
+            for cf in active_custom_fields:
+                if cf.field_type == "file":
+                    file_obj = request.FILES.get(f"custom_field_{cf.name}")
+                    if file_obj:
+                        CustomFieldValue.objects.create(
+                            series=series,
+                            custom_field=cf,
+                            file_upload=file_obj,
+                            value=file_obj.name,
+                        )
+                else:
+                    val = request.POST.get(f"custom_field_{cf.name}", "").strip()
+                    if val:
+                        CustomFieldValue.objects.create(series=series, custom_field=cf, value=val)
+
             log_change(request.user, "Created", series, {"title": series.title, "type": series.series_type})
             messages.success(request, f"Series '{series.title}' created.")
             return redirect("series_detail", pk=series.pk)
     else:
         form = SeriesForm()
-    return render(request, "programs/series_form.html", {"form": form})
+
+    custom_field_inputs = [
+        {"field": cf, "value": cf.default_value or "", "file_url": ""}
+        for cf in active_custom_fields
+    ]
+    return render(request, "programs/series_form.html", {"form": form, "custom_field_inputs": custom_field_inputs})
 
 
 @login_required
 def series_edit(request, pk):
     series = get_object_or_404(Series, pk=pk)
+    active_custom_fields = CustomField.objects.filter(is_active=True, target_element="series")
+    existing_values_map = {
+        cfv.custom_field_id: cfv for cfv in series.custom_field_values.all()
+    }
+
     if request.method == "POST":
         form = SeriesForm(request.POST, instance=series)
         if form.is_valid():
             s = form.save()
-            log_change(request.user, "Updated", s, {"changed": form.changed_data})
+
+            # Handle series custom fields update
+            changes_cf = {}
+            for cf in active_custom_fields:
+                if cf.field_type == "file":
+                    file_obj = request.FILES.get(f"custom_field_{cf.name}")
+                    if file_obj:
+                        cfv = existing_values_map.get(cf.id)
+                        if cfv:
+                            cfv.file_upload = file_obj
+                            cfv.value = file_obj.name
+                            cfv.save()
+                        else:
+                            CustomFieldValue.objects.create(
+                                series=s,
+                                custom_field=cf,
+                                file_upload=file_obj,
+                                value=file_obj.name,
+                            )
+                        changes_cf[cf.label] = f"Updated file: {file_obj.name}"
+                else:
+                    new_val = request.POST.get(f"custom_field_{cf.name}", "").strip()
+                    cfv = existing_values_map.get(cf.id)
+                    if cfv:
+                        if cfv.value != new_val:
+                            changes_cf[cf.label] = {"from": cfv.value, "to": new_val}
+                            cfv.value = new_val
+                            cfv.save()
+                    elif new_val:
+                        CustomFieldValue.objects.create(series=s, custom_field=cf, value=new_val)
+                        changes_cf[cf.label] = {"from": "", "to": new_val}
+
+            log_change(request.user, "Updated", s, {"changed": form.changed_data, "custom_fields": changes_cf})
             messages.success(request, f"Series '{s.title}' updated.")
             return redirect("series_detail", pk=s.pk)
     else:
         form = SeriesForm(instance=series)
-    return render(request, "programs/series_form.html", {"form": form})
+
+    custom_field_inputs = []
+    for cf in active_custom_fields:
+        cfv = existing_values_map.get(cf.id)
+        val = cfv.value if cfv else (cf.default_value or "")
+        f_url = cfv.file_upload.url if (cfv and cfv.file_upload) else ""
+        custom_field_inputs.append({"field": cf, "value": val, "file_url": f_url})
+
+    return render(request, "programs/series_form.html", {"form": form, "custom_field_inputs": custom_field_inputs})
 
 
 @login_required

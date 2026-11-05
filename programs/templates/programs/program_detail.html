@@ -143,6 +143,16 @@
                     {% endif %}
                   {% elif cf.field.field_type == 'url' %}
                     <a href="{{ cf.value }}" target="_blank">{{ cf.value }}</a>
+                  {% elif cf.field.field_type == 'enum' %}
+                    <span class="badge bg-light text-dark border">{{ cf.value }}</span>
+                  {% elif cf.field.field_type == 'file' %}
+                    {% if cf.file_url %}
+                      <a href="{{ cf.file_url }}" target="_blank" class="fw-semibold text-decoration-none">
+                        <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ cf.value }}
+                      </a>
+                    {% else %}
+                      {{ cf.value }}
+                    {% endif %}
                   {% else %}
                     {{ cf.value }}
                   {% endif %}

@@ -25,22 +25,37 @@
       <table class="table table-sm table-striped table-hover align-middle border" style="font-size: 0.85rem;">
         <thead class="table-light">
           <tr>
+            <th>Element</th>
             <th>Label</th>
             <th>Slug / Identifier</th>
             <th>Field Type</th>
+            <th>Choices / Details</th>
             <th>Required</th>
             <th>Status</th>
             <th>Default Value</th>
-            <th>Description</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for cf in custom_fields %}
           <tr>
+            <td>
+              {% if cf.target_element == 'series' %}
+                <span class="badge bg-info text-dark"><i class="bi bi-collection-play me-1"></i>Series</span>
+              {% else %}
+                <span class="badge bg-primary"><i class="bi bi-film me-1"></i>Program</span>
+              {% endif %}
+            </td>
             <td class="fw-semibold">{{ cf.label }}</td>
             <td><code>{{ cf.name }}</code></td>
             <td><span class="badge bg-light text-dark border">{{ cf.get_field_type_display }}</span></td>
+            <td>
+              {% if cf.field_type == 'enum' and cf.choices %}
+                <small class="text-muted text-truncate d-inline-block" style="max-width: 160px;" title="{{ cf.choices }}">{{ cf.choices }}</small>
+              {% else %}
+                <small class="text-muted">{{ cf.description|default:"-" }}</small>
+              {% endif %}
+            </td>
             <td>
               {% if cf.required %}
                 <span class="badge bg-danger">Required</span>
@@ -64,7 +79,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="8" class="text-center text-muted py-3">No custom metadata fields defined yet.</td>
+            <td colspan="9" class="text-center text-muted py-3">No custom metadata fields defined yet.</td>
           </tr>
           {% endfor %}
         </tbody>

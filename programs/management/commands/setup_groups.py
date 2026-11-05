@@ -24,4 +24,8 @@ class Command(BaseCommand):
                 perm = Permission.objects.get(content_type=ct, codename=f"{action}_{model._meta.model_name}")
                 editor_group.permissions.add(perm)
 
+        # Add dedicated can_bulk_import permission to Program Editors
+        p_bulk = Permission.objects.get(content_type=ct_program, codename="can_bulk_import")
+        editor_group.permissions.add(p_bulk)
+
         self.stdout.write(self.style.SUCCESS("Successfully set up default user groups and permissions."))

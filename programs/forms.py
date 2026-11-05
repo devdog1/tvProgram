@@ -137,11 +137,28 @@ class SeriesForm(forms.ModelForm):
 class CustomFieldForm(forms.ModelForm):
     class Meta:
         model = CustomField
-        fields = ["label", "name", "field_type", "description", "default_value", "required", "is_active"]
+        fields = [
+            "target_element",
+            "label",
+            "name",
+            "field_type",
+            "choices",
+            "description",
+            "default_value",
+            "required",
+            "is_active",
+        ]
         widgets = {
+            "target_element": forms.Select(attrs={"class": "form-select", "required": "required"}),
             "label": forms.TextInput(attrs={"class": "form-control", "required": "required"}),
             "name": forms.TextInput(attrs={"class": "form-control", "required": "required"}),
-            "field_type": forms.Select(attrs={"class": "form-select"}),
+            "field_type": forms.Select(attrs={"class": "form-select", "id": "fieldTypeSelect"}),
+            "choices": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Comma or newline separated options for enum list (e.g. Red, Blue, Green)",
+                "id": "choicesField",
+            }),
             "description": forms.TextInput(attrs={"class": "form-control"}),
             "default_value": forms.TextInput(attrs={"class": "form-control"}),
             "required": forms.CheckboxInput(attrs={"class": "form-check-input"}),
