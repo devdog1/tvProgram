@@ -1,0 +1,96 @@
+{% extends "programs/base.html" %}
+
+{% block title %}TV Series & Multi-part Programs - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-collection-play me-2 text-primary"></i> TV Series & Multi-part Programs
+    <small class="text-muted fs-6 ms-2">Manage series umbrellas and episodic sequences</small>
+  </div>
+  <div>
+    {% if perms.programs.add_series or perms.programs.add_program or user.is_staff or user.is_superuser %}
+      <a href="{% url 'series_create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle me-1"></i> Add Series
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="nb-card">
+  <div class="nb-card-header nb-card-header-primary">
+    <span><i class="bi bi-collection me-1"></i> Series Directory</span>
+    <span class="badge bg-light text-dark">{{ series_list|length }} Records</span>
+  </div>
+  <div class="p-3">
+    <div class="table-responsive">
+      <table id="seriesTable" class="table table-sm table-striped table-hover align-middle border" style="width:100%; font-size: 0.85rem;">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Episodes / Parts</th>
+            <th>Creator</th>
+            <th>Created</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in series_list %}
+          <tr>
+            <td class="fw-bold">{{ s.id }}</td>
+            <td>
+              <a href="{% url 'series_detail' s.id %}" class="fw-semibold text-primary text-decoration-none">
+                {{ s.title }}
+              </a>
+            </td>
+            <td><span class="badge bg-light text-dark border">{{ s.get_series_type_display }}</span></td>
+            <td>
+              {% if s.status == 'signed_off' %}
+                <span class="badge bg-success nb-badge-action">Signed Off</span>
+              {% elif s.status == 'pending_review' %}
+                <span class="badge bg-warning text-dark nb-badge-action">Pending</span>
+              {% elif s.status == 'rejected' %}
+                <span class="badge bg-danger nb-badge-action">Rejected</span>
+              {% else %}
+                <span class="badge bg-secondary nb-badge-action">Draft</span>
+              {% endif %}
+            </td>
+            <td><span class="badge bg-primary">{{ s.episodes.count }} programs</span></td>
+            <td>{{ s.created_by.username|default:"System" }}</td>
+            <td>{{ s.created_at|date:"Y-m-d" }}</td>
+            <td class="text-end text-nowrap">
+              <a href="{% url 'series_detail' s.id %}" class="btn btn-outline-info btn-xs py-0 px-1" title="View details" style="font-size: 0.75rem;">
+                <i class="bi bi-eye"></i>
+              </a>
+              <a href="{% url 'series_edit' s.id %}" class="btn btn-outline-primary btn-xs py-0 px-1" title="Edit" style="font-size: 0.75rem;">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% if user.is_staff or user.is_superuser %}
+              <a href="{% url 'series_delete' s.id %}" class="btn btn-outline-danger btn-xs py-0 px-1" title="Delete" style="font-size: 0.75rem;">
+                <i class="bi bi-trash"></i>
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  $(document).ready(function () {
+    $('#seriesTable').DataTable({
+      order: [[0, 'desc']],
+      pageLength: 25,
+      responsive: true
+    });
+  });
+</script>
+{% endblock %}

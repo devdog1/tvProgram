@@ -1,0 +1,184 @@
+{% extends "programs/base.html" %}
+
+{% block title %}{{ series.title }} - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-collection-play me-2 text-primary"></i> {{ series.title }}
+    <span class="badge bg-light text-dark border ms-2">{{ series.get_series_type_display }}</span>
+    {% if series.status == 'signed_off' %}
+      <span class="badge bg-success ms-2">Signed Off</span>
+    {% elif series.status == 'pending_review' %}
+      <span class="badge bg-warning text-dark ms-2">Pending Review</span>
+    {% elif series.status == 'rejected' %}
+      <span class="badge bg-danger ms-2">Rejected</span>
+    {% else %}
+      <span class="badge bg-secondary ms-2">Draft</span>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'series_edit' series.id %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-pencil me-1"></i> Edit Series
+    </a>
+    <a href="{% url 'program_create' %}?series={{ series.id }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-plus-circle me-1"></i> Add Episode / Part
+    </a>
+    <a href="{% url 'series_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back to Series
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Series Details -->
+  <div class="col-md-7">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span><i class="bi bi-info-circle me-1"></i> Series Metadata</span>
+      </div>
+      <div class="nb-card-body">
+        <table class="nb-table-widget">
+          <tbody>
+            <tr>
+              <th style="width: 30%;">Title</th>
+              <td class="fw-bold">{{ series.title }}</td>
+            </tr>
+            <tr>
+              <th>Series Type</th>
+              <td>{{ series.get_series_type_display }}</td>
+            </tr>
+            <tr>
+              <th>Description</th>
+              <td>{{ series.description|linebreaksbr|default:"No description" }}</td>
+            </tr>
+            <tr>
+              <th>Author / Creator</th>
+              <td>{{ series.created_by.username|default:"System" }}</td>
+            </tr>
+            <tr>
+              <th>Created</th>
+              <td>{{ series.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Episodes / Linked Programs Table -->
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-dark">
+        <span><i class="bi bi-film me-1"></i> Episodes & Parts ({{ series.episodes.count }})</span>
+      </div>
+      <div class="nb-card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+            <thead class="table-light">
+              <tr>
+                <th>Season</th>
+                <th>Episode / Part</th>
+                <th>Program Title</th>
+                <th>Length</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ep in series.episodes.all %}
+              <tr>
+                <td>{{ ep.season_number|default:"-" }}</td>
+                <td>
+                  {% if ep.episode_number %}Ep {{ ep.episode_number }}{% endif %}
+                  {% if ep.part_number %}Part {{ ep.part_number }}{% endif %}
+                  {% if not ep.episode_number and not ep.part_number %}-{% endif %}
+                </td>
+                <td>
+                  <a href="{% url 'program_detail' ep.id %}" class="fw-semibold text-primary text-decoration-none">
+                    {{ ep.title }}
+                  </a>
+                </td>
+                <td><code>{{ ep.length }}</code></td>
+                <td>
+                  {% if ep.status == 'signed_off' %}
+                    <span class="badge bg-success nb-badge-action">Signed Off</span>
+                  {% elif ep.status == 'pending_review' %}
+                    <span class="badge bg-warning text-dark nb-badge-action">Pending</span>
+                  {% else %}
+                    <span class="badge bg-secondary nb-badge-action">Draft</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'program_detail' ep.id %}" class="btn btn-outline-info btn-xs py-0 px-1"><i class="bi bi-eye"></i></a>
+                  <a href="{% url 'program_edit' ep.id %}" class="btn btn-outline-primary btn-xs py-0 px-1"><i class="bi bi-pencil"></i></a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-3">No episodes or parts added yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sign-off Workflow for Series -->
+  <div class="col-md-5">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span><i class="bi bi-patch-check me-1"></i> Series Review & Sign-off</span>
+      </div>
+      <div class="p-3">
+        <div class="mb-2">
+          <strong>Current Status:</strong>
+          {% if series.status == 'signed_off' %}
+            <span class="badge bg-success ms-1">Signed Off / Approved</span>
+          {% elif series.status == 'pending_review' %}
+            <span class="badge bg-warning text-dark ms-1">Pending Review</span>
+          {% elif series.status == 'rejected' %}
+            <span class="badge bg-danger ms-1">Rejected</span>
+          {% else %}
+            <span class="badge bg-secondary ms-1">Draft</span>
+          {% endif %}
+        </div>
+
+        {% if series.signed_off_by %}
+          <div class="small text-muted mb-2">
+            <strong>Validated by:</strong> {{ series.signed_off_by.username }} on {{ series.signed_off_at|date:"Y-m-d H:i" }}
+          </div>
+        {% endif %}
+
+        {% if series.sign_off_notes %}
+          <div class="small p-2 bg-light border rounded mb-3">
+            <strong>Notes:</strong> {{ series.sign_off_notes }}
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'series_signoff' series.id %}" class="border-top pt-3 mt-2">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Action:</label>
+            <select name="action" class="form-select form-select-sm" required>
+              {% if user_can_approve %}
+                <option value="approve">Approve & Sign Off</option>
+                <option value="reject">Reject</option>
+                <option value="reset_draft">Return to Draft</option>
+              {% endif %}
+              <option value="submit_for_review" {% if series.status == 'draft' %}selected{% endif %}>Submit for Sign-off Review</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Notes:</label>
+            <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Optional comments on review..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-check2-circle me-1"></i> Submit Decision
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

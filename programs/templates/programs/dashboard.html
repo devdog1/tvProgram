@@ -1,0 +1,185 @@
+{% extends "programs/base.html" %}
+
+{% block title %}Dashboard - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-3">
+  <!-- Top notification / alert widget like NetBox "Notes" -->
+  <div class="col-12">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span><i class="bi bi-gear-fill me-1"></i> System Overview</span>
+        <button class="btn btn-sm btn-link text-white p-0" type="button" data-bs-toggle="collapse" data-bs-target="#overviewCollapse">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+      <div class="collapse show" id="overviewCollapse">
+        <div class="p-3 bg-white">
+          <p class="mb-0 text-muted" style="font-size: 0.9rem;">
+            Welcome to the <strong>WCGtv Metadata & Media Management System</strong>. This dashboard provides access to program tracking, episodic TV series management, custom metadata attributes, and sign-off verification workflows.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NetBox Widget Grid -->
+<div class="row g-3 mb-4">
+  <!-- Programs Widget -->
+  <div class="col-md-4">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-dark">
+        <span><i class="bi bi-film me-1"></i> Media & Programs</span>
+        <a href="{% url 'program_create' %}" class="btn btn-xs btn-outline-light py-0 px-1" style="font-size: 0.75rem;">+ Add</a>
+      </div>
+      <div class="nb-card-body">
+        <table class="nb-table-widget">
+          <tbody>
+            <tr>
+              <td><a href="{% url 'program_list' %}" class="text-decoration-none text-dark">Total Programs</a></td>
+              <td class="text-end fw-bold">{{ programs_count }}</td>
+            </tr>
+            <tr>
+              <td><a href="{% url 'program_list' %}?status=signed_off" class="text-decoration-none text-success">Signed Off</a></td>
+              <td class="text-end fw-bold text-success">{{ signed_off_count }}</td>
+            </tr>
+            <tr>
+              <td><a href="{% url 'signoff_queue' %}" class="text-decoration-none text-warning">Pending Review</a></td>
+              <td class="text-end fw-bold text-warning">{{ pending_review_count }}</td>
+            </tr>
+            <tr>
+              <td><a href="{% url 'program_list' %}?status=draft" class="text-decoration-none text-secondary">Drafts</a></td>
+              <td class="text-end fw-bold text-secondary">{{ draft_count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Series & Episodic Widget -->
+  <div class="col-md-4">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-dark">
+        <span><i class="bi bi-collection-play me-1"></i> Series & Multi-part</span>
+        <a href="{% url 'series_create' %}" class="btn btn-xs btn-outline-light py-0 px-1" style="font-size: 0.75rem;">+ Add</a>
+      </div>
+      <div class="nb-card-body">
+        <table class="nb-table-widget">
+          <tbody>
+            <tr>
+              <td><a href="{% url 'series_list' %}" class="text-decoration-none text-dark">Total Series</a></td>
+              <td class="text-end fw-bold">{{ series_count }}</td>
+            </tr>
+            <tr>
+              <td>TV Series</td>
+              <td class="text-end">{{ tv_series_count }}</td>
+            </tr>
+            <tr>
+              <td>Mini-Series</td>
+              <td class="text-end">{{ mini_series_count }}</td>
+            </tr>
+            <tr>
+              <td>Multi-Part Programs</td>
+              <td class="text-end">{{ multi_part_count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customization Widget -->
+  <div class="col-md-4">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-dark">
+        <span><i class="bi bi-sliders me-1"></i> Customization</span>
+        <a href="{% url 'manage_options' %}" class="btn btn-xs btn-outline-light py-0 px-1" style="font-size: 0.75rem;">Manage</a>
+      </div>
+      <div class="nb-card-body">
+        <table class="nb-table-widget">
+          <tbody>
+            <tr>
+              <td>Categories</td>
+              <td class="text-end fw-bold">{{ categories_count }}</td>
+            </tr>
+            <tr>
+              <td>Communities</td>
+              <td class="text-end fw-bold">{{ communities_count }}</td>
+            </tr>
+            <tr>
+              <td>Source Codes</td>
+              <td class="text-end fw-bold">{{ source_codes_count }}</td>
+            </tr>
+            <tr>
+              <td>Custom Fields</td>
+              <td class="text-end fw-bold">{{ custom_fields_count }}</td>
+            </tr>
+            <tr>
+              <td><a href="{% url 'event_hooks_list' %}" class="text-decoration-none text-dark">Event Hooks</a></td>
+              <td class="text-end fw-bold">{{ event_hooks_count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NetBox Change Log Table Widget (as visible in screenshot) -->
+<div class="row">
+  <div class="col-12">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span><i class="bi bi-clock-history me-1"></i> Change Log</span>
+        <a href="{% url 'changelog_list' %}" class="btn btn-xs btn-outline-light py-0 px-2" style="font-size: 0.75rem;">View All</a>
+      </div>
+      <div class="nb-card-body">
+        <div class="table-responsive">
+          <table class="nb-table-widget align-middle">
+            <thead class="bg-light">
+              <tr style="font-size: 0.78rem; text-transform: uppercase; color: #6c757d;">
+                <th>Time</th>
+                <th>Username</th>
+                <th>Action</th>
+                <th>Type</th>
+                <th>Object</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in recent_logs %}
+              <tr>
+                <td style="color: #0d6efd; font-family: monospace;">{{ log.timestamp|date:"Y-m-d H:i" }}</td>
+                <td>{{ log.user_display|default:"System" }}</td>
+                <td>
+                  {% if log.action == 'Created' %}
+                    <span class="badge bg-success nb-badge-action">Created</span>
+                  {% elif log.action == 'Updated' %}
+                    <span class="badge bg-primary nb-badge-action">Updated</span>
+                  {% elif log.action == 'Deleted' %}
+                    <span class="badge bg-danger nb-badge-action">Deleted</span>
+                  {% elif log.action == 'Signed Off' %}
+                    <span class="badge bg-info text-dark nb-badge-action">Signed Off</span>
+                  {% else %}
+                    <span class="badge bg-secondary nb-badge-action">{{ log.action }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ log.object_type }}</td>
+                <td>
+                  <a href="#" class="text-decoration-none text-primary fw-medium">{{ log.object_repr|truncatechars:50 }}</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-3">No activity logged yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

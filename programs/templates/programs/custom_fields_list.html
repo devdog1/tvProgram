@@ -1,0 +1,75 @@
+{% extends "programs/base.html" %}
+
+{% block title %}Custom Fields - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-input-cursor-text me-2 text-primary"></i> Custom Metadata Fields
+    <small class="text-muted fs-6 ms-2">Define custom attributes to capture on programs</small>
+  </div>
+  <div>
+    <a href="{% url 'custom_field_create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-circle me-1"></i> Add Custom Field
+    </a>
+  </div>
+</div>
+
+<div class="nb-card">
+  <div class="nb-card-header nb-card-header-primary">
+    <span><i class="bi bi-list-columns me-1"></i> Configured Custom Fields</span>
+    <span class="badge bg-light text-dark">{{ custom_fields|length }} Total</span>
+  </div>
+  <div class="p-3">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-hover align-middle border" style="font-size: 0.85rem;">
+        <thead class="table-light">
+          <tr>
+            <th>Label</th>
+            <th>Slug / Identifier</th>
+            <th>Field Type</th>
+            <th>Required</th>
+            <th>Status</th>
+            <th>Default Value</th>
+            <th>Description</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cf in custom_fields %}
+          <tr>
+            <td class="fw-semibold">{{ cf.label }}</td>
+            <td><code>{{ cf.name }}</code></td>
+            <td><span class="badge bg-light text-dark border">{{ cf.get_field_type_display }}</span></td>
+            <td>
+              {% if cf.required %}
+                <span class="badge bg-danger">Required</span>
+              {% else %}
+                <span class="badge bg-secondary">Optional</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if cf.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Disabled</span>
+              {% endif %}
+            </td>
+            <td>{{ cf.default_value|default:"-" }}</td>
+            <td>{{ cf.description|default:"-" }}</td>
+            <td class="text-end">
+              <a href="{% url 'custom_field_edit' cf.id %}" class="btn btn-outline-primary btn-xs py-0 px-1" title="Edit"><i class="bi bi-pencil"></i></a>
+              <a href="{% url 'custom_field_delete' cf.id %}" class="btn btn-outline-danger btn-xs py-0 px-1" title="Delete"><i class="bi bi-trash"></i></a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-3">No custom metadata fields defined yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

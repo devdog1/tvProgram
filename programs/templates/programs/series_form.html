@@ -1,0 +1,58 @@
+{% extends "programs/base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit Series: {{ form.instance.title }}{% else %}New Series{% endif %} - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-collection-play me-2 text-primary"></i>
+    {% if form.instance.pk %}Edit Series: {{ form.instance.title }}{% else %}New TV Series or Multi-Part Program{% endif %}
+  </div>
+  <div>
+    <a href="{% url 'series_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back to Series
+    </a>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span><i class="bi bi-pencil-square me-1"></i> Series Configuration</span>
+      </div>
+      <div class="p-4">
+        <form method="post">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label for="{{ form.title.id_for_label }}" class="form-label fw-semibold">Series Title: <span class="text-danger">*</span></label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="text-danger small">{{ form.title.errors }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.series_type.id_for_label }}" class="form-label fw-semibold">Series Type: <span class="text-danger">*</span></label>
+            {{ form.series_type }}
+            {% if form.series_type.errors %}<div class="text-danger small">{{ form.series_type.errors }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.description.id_for_label }}" class="form-label fw-semibold">Description:</label>
+            {{ form.description }}
+            {% if form.description.errors %}<div class="text-danger small">{{ form.description.errors }}</div>{% endif %}
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+            <a href="{% url 'series_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save Series</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

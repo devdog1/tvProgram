@@ -1,0 +1,94 @@
+{% extends "programs/base.html" %}
+
+{% block title %}Event Hooks - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-broadcast-pin me-2 text-primary"></i> Event Hook Manager
+    <small class="text-muted fs-6 ms-2">Configure automated triggers (email notifications, webhooks) on system events</small>
+  </div>
+  <div>
+    <a href="{% url 'event_hook_create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-circle me-1"></i> Add Event Hook
+    </a>
+  </div>
+</div>
+
+<div class="nb-card">
+  <div class="nb-card-header nb-card-header-primary">
+    <span><i class="bi bi-cpu me-1"></i> Configured Event Hooks</span>
+    <span class="badge bg-light text-dark">{{ hooks|length }} Total</span>
+  </div>
+  <div class="p-3">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-hover align-middle border" style="font-size: 0.85rem;">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Event Trigger</th>
+            <th>Action</th>
+            <th>Status</th>
+            <th>Target (Recipients / Webhook)</th>
+            <th>Last Triggered</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for hook in hooks %}
+          <tr>
+            <td class="fw-semibold">{{ hook.name }}</td>
+            <td><span class="badge bg-light text-dark border">{{ hook.get_event_type_display }}</span></td>
+            <td>
+              {% if hook.action_type == 'email' %}
+                <span class="badge bg-info text-dark"><i class="bi bi-envelope me-1"></i>Email</span>
+              {% else %}
+                <span class="badge bg-primary"><i class="bi bi-link-45deg me-1"></i>Webhook</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if hook.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Disabled</span>
+              {% endif %}
+            </td>
+            <td style="max-width: 250px;" class="text-truncate">
+              {% if hook.action_type == 'email' %}
+                {{ hook.recipient_emails }}
+              {% else %}
+                <code>{{ hook.webhook_url }}</code>
+              {% endif %}
+            </td>
+            <td>
+              {% if hook.last_triggered_at %}
+                {{ hook.last_triggered_at|date:"Y-m-d H:i" }}
+              {% else %}
+                <span class="text-muted">Never</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              <a href="{% url 'event_hook_toggle' hook.id %}" class="btn btn-outline-secondary btn-xs py-0 px-1" title="Toggle Active">
+                {% if hook.is_active %}Deactivate{% else %}Activate{% endif %}
+              </a>
+              <a href="{% url 'event_hook_edit' hook.id %}" class="btn btn-outline-primary btn-xs py-0 px-1" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% if user.is_staff or user.is_superuser %}
+              <a href="{% url 'event_hook_delete' hook.id %}" class="btn btn-outline-danger btn-xs py-0 px-1" title="Delete">
+                <i class="bi bi-trash"></i>
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-3">No event hooks configured. Click "+ Add Event Hook" to create one.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

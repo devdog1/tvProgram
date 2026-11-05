@@ -1,0 +1,114 @@
+{% extends "programs/base.html" %}
+
+{% block title %}Sign-off Review Queue - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-check2-all me-2 text-primary"></i> Sign-off Validation Queue
+    <small class="text-muted fs-6 ms-2">Items pending validation and editorial sign-off</small>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Programs Pending Review -->
+  <div class="col-12">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span><i class="bi bi-film me-1"></i> Programs Pending Sign-off</span>
+        <span class="badge bg-light text-dark">{{ pending_programs|length }}</span>
+      </div>
+      <div class="p-3">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle border" style="font-size: 0.85rem;">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Series</th>
+                <th>Producer</th>
+                <th>Length</th>
+                <th>Category</th>
+                <th>Author</th>
+                <th>Created</th>
+                <th class="text-end">Review</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in pending_programs %}
+              <tr>
+                <td class="fw-bold">{{ p.id }}</td>
+                <td><a href="{% url 'program_detail' p.id %}" class="fw-semibold text-primary text-decoration-none">{{ p.title }}</a></td>
+                <td>{{ p.series.title|default:"-" }}</td>
+                <td>{{ p.producer }}</td>
+                <td><code>{{ p.length }}</code></td>
+                <td>{{ p.category|default:"-" }}</td>
+                <td>{{ p.created_by.username|default:"System" }}</td>
+                <td>{{ p.created|date:"Y-m-d H:i" }}</td>
+                <td class="text-end">
+                  <a href="{% url 'program_detail' p.id %}" class="btn btn-primary btn-sm py-0 px-2">
+                    <i class="bi bi-patch-check me-1"></i> Review & Sign Off
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="9" class="text-center text-muted py-3">No programs pending sign-off review.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Series Pending Review -->
+  <div class="col-12">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-dark">
+        <span><i class="bi bi-collection-play me-1"></i> Series Pending Sign-off</span>
+        <span class="badge bg-light text-dark">{{ pending_series|length }}</span>
+      </div>
+      <div class="p-3">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle border" style="font-size: 0.85rem;">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Series Type</th>
+                <th>Episodes / Parts</th>
+                <th>Author</th>
+                <th>Created</th>
+                <th class="text-end">Review</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in pending_series %}
+              <tr>
+                <td class="fw-bold">{{ s.id }}</td>
+                <td><a href="{% url 'series_detail' s.id %}" class="fw-semibold text-primary text-decoration-none">{{ s.title }}</a></td>
+                <td>{{ s.get_series_type_display }}</td>
+                <td>{{ s.episodes.count }}</td>
+                <td>{{ s.created_by.username|default:"System" }}</td>
+                <td>{{ s.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="text-end">
+                  <a href="{% url 'series_detail' s.id %}" class="btn btn-primary btn-sm py-0 px-2">
+                    <i class="bi bi-patch-check me-1"></i> Review & Sign Off
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="text-center text-muted py-3">No series pending sign-off review.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

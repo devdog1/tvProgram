@@ -1,134 +1,197 @@
-# WCGtv Metadata Platform
+# WCGtv Metadata & Media Management Platform
 
-A modern Django-based web application replacing the legacy PHP metadata tool (`index.php` and `programs.php`). The platform allows authenticated users to submit and manage television broadcast programs, complete with form format validations, user permission controls, preloaded default options, and dynamic dropdown administration (Categories, Communities, Source Codes, and Share With options) using a MySQL/MariaDB database.
+A Django-based media management platform built to modernize the WCGtv metadata tool. The application features a NetBox-inspired interface, program CRUD with ownership permissions, episodic TV series management, custom metadata fields, change log auditing, file attachments, and sign-off verification workflows. It uses SQLite (`db.sqlite3`) as the default database engine.
 
 ---
 
 ## Features
 
-1. **Authentication & Authorization**
-   - **Program Creators (`add_program`)**: Can submit new programs and view program listings.
-   - **Program Editors (`change_program`, `delete_program`)**: Can edit, update, and delete programs, as well as create, edit, enable, or disable system-defined dropdown options (Category, Community, Source Code, Share With).
-   - Standard Django Admin interface at `/admin/`.
-
-2. **Program Management & Format Validation**
-   - Conforms strictly to validation rules from the original PHP code:
-     - **Title**: Required non-empty string.
-     - **Date Recorded**: Required format `YYYY-MM-DD` (equipped with jQuery UI datepicker).
-     - **Expiry Date**: Optional format `YYYY-MM-DD` (equipped with jQuery UI datepicker).
-     - **Producer**: Required non-empty string.
-     - **Length**: Required format `HH:MM:SS` (regex checked).
-     - **Category**: Dynamic single-select dropdown of active categories.
-     - **Community**: Dynamic multi-select of active communities (serialized to comma-delimited strings to match PHP database schema).
-     - **Source Code**: Dynamic single-select dropdown of active source codes.
-     - **Share With**: Dynamic multi-select of active share regions.
-     - **Filename**: Required format `^[^\\/:*?"<>|]+\.[a-zA-Z0-9]{1,5}$` (valid filename with extension).
-     - **Comments**: Optional string up to 255 characters.
-   - Dual-layer validation: Client-side JavaScript validation (matching legacy `validateForm`) and server-side Django Form / Model validation.
-   - Optional legacy mode: Checkbox allowing users to download the formatted `.txt` metadata file attachment upon submission.
-
-3. **Dynamic System Options Management**
-   - Dashboard accessible at `/options/` for users with edit permissions.
-   - Ability to **Create**, **Edit**, **Enable**, and **Disable** choices for:
-     - Categories (e.g., Arts/Music, Sports, Religion, etc.)
-     - Communities (e.g., Brandon, Birtle, Dauphin, etc.)
-     - Source Codes (e.g., Single Camera/No Editing, Studio Production, etc.)
-     - Share With options (e.g., All, Brandon, North, South)
-   - Only enabled options are displayed to users in the program submission and edit dropdowns (while preserving historical values on existing programs).
-
-4. **Program Directory & DataTables**
-   - Responsive list view styled with Bootstrap 5 and DataTables (sorting, instant search, pagination, descending order by ID) reproducing `programs.php`.
-
-5. **Preloaded System Defaults**
-   - Automatically preloads all default categories, communities, source codes, and share options into the database via Django migrations and a management command (`python manage.py preload_defaults`).
+- **NetBox-Inspired UI**: Sidebar navigation, dashboard widgets, and change log tables styled after the NetBox administrative interface.
+- **Program Metadata Management**: Create, view, edit, and delete programs with field validations (`HH:MM:SS` duration, `YYYY-MM-DD` dates, filename extensions, comments length limits).
+- **Episodic Linkage**: Organize programs under parent TV Series, Mini-Series, or Multi-Part titles with season, episode, and part numbering.
+- **Creator Ownership & Permissions**: Users can edit programs they created but cannot delete them. Only privileged editors/administrators may delete programs.
+- **Full Versioning & Change Log**: Comprehensive audit trail recording user, action (Created, Updated, Deleted, Signed Off, Rejected), object type, and delta details.
+- **File Attachments**: Upload supplementary documents (broadcast cue sheets, release forms, cue notes) to programs.
+- **Custom Metadata Fields**: Administrators can create custom program attributes (Text, Textarea, Integer, Boolean, Date, URL) dynamically rendered on forms.
+- **Sign-off / Review Workflow**: Editorial validation workflow (`Draft`, `Pending Review`, `Signed Off`, `Rejected`) with reviewer notes.
+- **Preloaded Metadata Options**: Pre-seeded with categories, communities, source codes, and share regions from original PHP specifications, with toggle and management capabilities.
 
 ---
 
-## Database Configuration
+## Python Virtual Environment Setup
 
-The application is configured to use MySQL / MariaDB using the `mysqlclient` backend:
+### 1. Prerequisites
+- Python 3.10+ (Python 3.12 recommended)
+- `pip` and `python3-venv`
 
-- **Database Name**: `wcgtv` (default, configurable via `DB_NAME` env var)
-- **User**: `wcgtv` (default, configurable via `DB_USER` env var)
-- **Password**: `hasfjafdhiu790shiod` (default, configurable via `DB_PASSWORD` env var)
-- **Host**: `127.0.0.1` (configurable via `DB_HOST` env var)
-- **Port**: `3306` (configurable via `DB_PORT` env var)
+### 2. Creating and Activating the Virtual Environment
 
-### Initial MySQL Setup:
-```sql
-CREATE DATABASE IF NOT EXISTS wcgtv CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'wcgtv'@'localhost' IDENTIFIED BY 'hasfjafdhiu790shiod';
-GRANT ALL PRIVILEGES ON wcgtv.* TO 'wcgtv'@'localhost';
-FLUSH PRIVILEGES;
+#### On Linux / macOS:
+```bash
+# Create the virtual environment in the project directory
+python3 -m venv venv
+
+# Activate the virtual environment
+source venv/bin/activate
+```
+
+#### On Windows (PowerShell / Command Prompt):
+```powershell
+# Create the virtual environment
+python -m venv venv
+
+# Activate (PowerShell)
+.\venv\Scripts\Activate.ps1
+
+# Or activate (cmd.exe)
+.\venv\Scripts\activate.bat
+```
+
+### 3. Installing Dependencies
+
+With the virtual environment activated:
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
 ---
 
-## Installation & Setup
+## Running in Development & Testing
 
-1. **Clone or Navigate to the Repository**:
-   ```bash
-   cd /path/to/wcgtv
-   ```
+### 1. Database Setup & Migrations
+SQLite is configured by default (`db.sqlite3`):
+```bash
+python manage.py migrate
+```
 
-2. **Install Python Dependencies**:
-   ```bash
-   pip install django mysqlclient
-   ```
+### 2. Preloading Defaults & Groups
+Populate the system metadata options and user groups:
+```bash
+python manage.py preload_defaults
+python manage.py setup_groups
+```
 
-3. **Apply Database Migrations**:
-   This creates the required database tables and automatically preloads the system defaults from the PHP file:
-   ```bash
-   python manage.py migrate
-   ```
+### 3. Creating an Admin User
+```bash
+python manage.py createsuperuser
+```
 
-4. **Initialize Permission Groups**:
-   Run the custom management command to create the standard `Program Creators` and `Program Editors` groups:
-   ```bash
-   python manage.py setup_groups
-   ```
-
-5. **Create an Admin / Editor User**:
-   ```bash
-   python manage.py createsuperuser
-   ```
-   Or via the Django shell:
-   ```python
-   from django.contrib.auth.models import User, Group
-   user = User.objects.create_user("editor_user", password="your_password")
-   group = Group.objects.get(name="Program Editors")
-   user.groups.add(group)
-   ```
-
-6. **Start the Development Server**:
-   ```bash
-   python manage.py runserver 0.0.0.0:8000
-   ```
-
----
-
-## Running Automated Tests
-
-Run the full Django test suite covering form validations, permission constraints, attachment downloads, and option toggling:
-
+### 4. Running the Test Suite
+Execute the comprehensive automated test suite inside the virtual environment:
 ```bash
 python manage.py test
 ```
 
+### 5. Running the Development Server
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+Visit `http://127.0.0.1:8000/` in your browser.
+
 ---
 
-## URL Endpoints
+## Running in Production
 
-| URL Path | View Description | Required Permission |
-| :--- | :--- | :--- |
-| `/login/` | User Authentication / Sign In | Public |
-| `/logout/` | User Sign Out | Authenticated |
-| `/` | Programs Table (DataTables list) | Authenticated |
-| `/programs/new/` | Submit New Program Form | Program Creators / Editors |
-| `/programs/<id>/edit/` | Edit Existing Program | Program Editors |
-| `/programs/<id>/delete/` | Delete Program | Program Editors |
-| `/options/` | System Defined Options Dashboard | Program Editors |
-| `/options/<type>/new/` | Add New Option | Program Editors |
-| `/options/<type>/<id>/edit/` | Edit Option Name/Display | Program Editors |
-| `/options/<type>/<id>/toggle/` | Enable / Disable Option | Program Editors |
-| `/admin/` | Django Admin Console | Staff / Superuser |
+### 1. Production Settings Checklist
+- Set `DEBUG = False` in `wcgtv_project/settings.py` or use environment variables.
+- Set a strong secret key via `SECRET_KEY`.
+- Configure `ALLOWED_HOSTS` with your domain/IP:
+  ```python
+  ALLOWED_HOSTS = ["metadata.wcgtv.ca", "127.0.0.1"]
+  ```
+
+### 2. Static and Media Files
+Collect static files for production web server delivery (Nginx/Apache):
+```bash
+python manage.py collectstatic --noinput
+```
+Ensure directory permissions for uploads:
+```bash
+mkdir -p media/program_attachments
+chmod -R 755 media
+```
+
+### 3. Production WSGI Server (Gunicorn)
+Install Gunicorn inside the virtual environment:
+```bash
+pip install gunicorn
+```
+
+Run Gunicorn using the virtual environment's executable:
+```bash
+/path/to/project/venv/bin/gunicorn wcgtv_project.wsgi:application \
+    --bind 127.0.0.1:8000 \
+    --workers 4 \
+    --timeout 60 \
+    --access-logfile /var/log/wcgtv/access.log \
+    --error-logfile /var/log/wcgtv/error.log
+```
+
+### 4. Systemd Service Example (`/etc/systemd/system/wcgtv.service`)
+```ini
+[Unit]
+Description=WCGtv Metadata Gunicorn Daemon
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/wcgtv
+ExecStart=/var/www/wcgtv/venv/bin/gunicorn \
+          --workers 3 \
+          --bind unix:/run/wcgtv.sock \
+          wcgtv_project.wsgi:application
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 5. Nginx Reverse Proxy Configuration Example
+```nginx
+server {
+    listen 80;
+    server_name metadata.wcgtv.ca;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+
+    location /static/ {
+        alias /var/www/wcgtv/staticfiles/;
+    }
+
+    location /media/ {
+        alias /var/www/wcgtv/media/;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+---
+
+## User Roles & Permissions Summary
+
+- **Creator Users (`Program Creators`)**:
+  - Add new programs and TV series.
+  - Edit programs they have created.
+  - Cannot delete programs.
+  - Submit programs for editorial sign-off review.
+  - Attach files to their programs.
+
+- **Editor Users (`Program Editors`)**:
+  - Full CRUD permissions on all programs and series.
+  - Sign off, approve, or reject program and series submissions.
+  - Manage system metadata options (categories, communities, source codes, share options).
+  - Manage custom metadata attributes.
+
+- **Superusers / Administrators**:
+  - Full access including Django Admin site and custom field definitions.

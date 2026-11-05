@@ -1,0 +1,223 @@
+/* NetBox-inspired theme styles for WCGtv */
+:root {
+  --nb-sidebar-width: 240px;
+  --nb-sidebar-bg: #1e2530;
+  --nb-sidebar-hover: #293241;
+  --nb-sidebar-active: #2b394e;
+  --nb-sidebar-text: #adb5bd;
+  --nb-sidebar-text-bright: #ffffff;
+  --nb-header-bg: #ffffff;
+  --nb-body-bg: #f5f6f8;
+  --nb-card-header: #2f54eb;
+  --nb-card-header-alt: #495057;
+  --nb-border-color: #dee2e6;
+  --nb-accent: #0d6efd;
+}
+
+body {
+  background-color: var(--nb-body-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #333333;
+}
+
+/* Sidebar */
+#sidebar-wrapper {
+  width: var(--nb-sidebar-width);
+  min-height: 100vh;
+  background-color: var(--nb-sidebar-bg);
+  color: var(--nb-sidebar-text);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebar-wrapper .sidebar-brand {
+  padding: 1rem 1.25rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+#sidebar-wrapper .sidebar-brand small {
+  font-size: 0.7rem;
+  font-weight: normal;
+  display: block;
+  color: #0dcaf0;
+  letter-spacing: 0.5px;
+}
+
+#sidebar-wrapper .nav-item {
+  width: 100%;
+}
+
+#sidebar-wrapper .nav-link {
+  color: var(--nb-sidebar-text);
+  padding: 0.65rem 1.25rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  transition: all 0.15s ease-in-out;
+}
+
+#sidebar-wrapper .nav-link:hover {
+  color: var(--nb-sidebar-text-bright);
+  background-color: var(--nb-sidebar-hover);
+}
+
+#sidebar-wrapper .nav-link.active {
+  color: #ffffff;
+  background-color: var(--nb-sidebar-active);
+  border-left: 3px solid #0d6efd;
+}
+
+#sidebar-wrapper .sidebar-heading {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+  color: #6c757d;
+  padding: 0.75rem 1.25rem 0.25rem 1.25rem;
+  font-weight: 700;
+}
+
+#sidebar-wrapper .sidebar-footer {
+  margin-top: auto;
+  padding: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+/* Main Content Area */
+#content-wrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background-color: var(--nb-body-bg);
+}
+
+/* Top Navbar */
+.nb-navbar {
+  background-color: var(--nb-header-bg);
+  border-bottom: 1px solid var(--nb-border-color);
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+}
+
+.nb-search-box {
+  width: 320px;
+}
+
+.nb-search-box .form-control {
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  font-size: 0.85rem;
+}
+
+/* NetBox-style Cards & Widgets */
+.nb-card {
+  border: 1px solid var(--nb-border-color);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  background: #ffffff;
+  margin-bottom: 1.25rem;
+}
+
+.nb-card-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+.nb-card-header-primary {
+  background-color: #2850a8;
+}
+
+.nb-card-header-dark {
+  background-color: #555e6d;
+}
+
+.nb-card-header-teal {
+  background-color: #207d80;
+}
+
+.nb-card-body {
+  padding: 0;
+}
+
+.nb-table-widget {
+  width: 100%;
+  margin-bottom: 0;
+  font-size: 0.85rem;
+}
+
+.nb-table-widget td, .nb-table-widget th {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.nb-table-widget tr:last-child td {
+  border-bottom: none;
+}
+
+.nb-table-widget tr:hover {
+  background-color: #f8f9fa;
+}
+
+.nb-badge-action {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 3px;
+}
+
+/* Badges for status */
+.badge-status-draft {
+  background-color: #6c757d;
+  color: #ffffff;
+}
+
+.badge-status-pending_review {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.badge-status-signed_off {
+  background-color: #198754;
+  color: #ffffff;
+}
+
+.badge-status-rejected {
+  background-color: #dc3545;
+  color: #ffffff;
+}
+
+/* Content padding */
+.nb-content {
+  padding: 1.5rem;
+}
+
+.nb-page-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

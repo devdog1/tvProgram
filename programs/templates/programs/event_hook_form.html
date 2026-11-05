@@ -1,0 +1,132 @@
+{% extends "programs/base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit Event Hook{% else %}Add Event Hook{% endif %} - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-broadcast-pin me-2 text-primary"></i>
+    {% if form.instance.pk %}Edit Event Hook: {{ form.instance.name }}{% else %}Create New Event Hook{% endif %}
+  </div>
+  <div>
+    <a href="{% url 'event_hooks_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back to Event Hooks
+    </a>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span><i class="bi bi-sliders me-1"></i> Event Hook Configuration</span>
+      </div>
+      <div class="p-4">
+        <form method="post">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="row">
+            <div class="col-md-8 mb-3">
+              <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold">Hook Name: <span class="text-danger">*</span></label>
+              {{ form.name }}
+              <div class="form-text">e.g. "Notify Operations on New Program Added"</div>
+              {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors }}</div>{% endif %}
+            </div>
+
+            <div class="col-md-4 mb-3 d-flex align-items-center">
+              <div class="form-check form-switch mt-4">
+                {{ form.is_active }}
+                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Active</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.event_type.id_for_label }}" class="form-label fw-semibold">Event Trigger: <span class="text-danger">*</span></label>
+              {{ form.event_type }}
+              {% if form.event_type.errors %}<div class="text-danger small">{{ form.event_type.errors }}</div>{% endif %}
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.action_type.id_for_label }}" class="form-label fw-semibold">Action to Perform: <span class="text-danger">*</span></label>
+              {{ form.action_type }}
+              {% if form.action_type.errors %}<div class="text-danger small">{{ form.action_type.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- Email Section -->
+          <div id="emailSettingsSection" class="p-3 mb-3 bg-light border rounded">
+            <h6 class="fw-bold mb-3 text-primary"><i class="bi bi-envelope me-1"></i> Email Action Settings</h6>
+
+            <div class="mb-3">
+              <label for="{{ form.recipient_emails.id_for_label }}" class="form-label fw-semibold">Recipient Emails: <span class="text-danger">*</span></label>
+              {{ form.recipient_emails }}
+              <div class="form-text">Comma or newline separated list of email addresses.</div>
+              {% if form.recipient_emails.errors %}<div class="text-danger small">{{ form.recipient_emails.errors }}</div>{% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.email_subject.id_for_label }}" class="form-label fw-semibold">Subject Template:</label>
+              {{ form.email_subject }}
+              <div class="form-text">Available template tags: <code>{event}</code>, <code>{title}</code>, <code>{id}</code>, <code>{producer}</code>, <code>{user}</code></div>
+              {% if form.email_subject.errors %}<div class="text-danger small">{{ form.email_subject.errors }}</div>{% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.email_body.id_for_label }}" class="form-label fw-semibold">Body Template:</label>
+              {{ form.email_body }}
+              <div class="form-text">Available tags: <code>{event}</code>, <code>{title}</code>, <code>{id}</code>, <code>{producer}</code>, <code>{user}</code>, <code>{details}</code></div>
+              {% if form.email_body.errors %}<div class="text-danger small">{{ form.email_body.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- Webhook Section -->
+          <div id="webhookSettingsSection" class="p-3 mb-3 bg-light border rounded" style="display: none;">
+            <h6 class="fw-bold mb-3 text-primary"><i class="bi bi-link-45deg me-1"></i> Webhook Action Settings</h6>
+
+            <div class="mb-3">
+              <label for="{{ form.webhook_url.id_for_label }}" class="form-label fw-semibold">Target Webhook URL: <span class="text-danger">*</span></label>
+              {{ form.webhook_url }}
+              {% if form.webhook_url.errors %}<div class="text-danger small">{{ form.webhook_url.errors }}</div>{% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label for="{{ form.webhook_secret.id_for_label }}" class="form-label fw-semibold">Secret Key / Header Token:</label>
+              {{ form.webhook_secret }}
+              {% if form.webhook_secret.errors %}<div class="text-danger small">{{ form.webhook_secret.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+            <a href="{% url 'event_hooks_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save Event Hook</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  $(function() {
+    function toggleActionFields() {
+      const val = $("#actionTypeSelect").val();
+      if (val === "email") {
+        $("#emailSettingsSection").show();
+        $("#webhookSettingsSection").hide();
+      } else {
+        $("#emailSettingsSection").hide();
+        $("#webhookSettingsSection").show();
+      }
+    }
+    $("#actionTypeSelect").on("change", toggleActionFields);
+    toggleActionFields();
+  });
+</script>
+{% endblock %}

@@ -1,146 +1,285 @@
 {% extends "programs/base.html" %}
 
-{% block title %}{{ action }} Program - WCGtv Metadata Tool{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit Program{% else %}New Program{% endif %} - WCGtv Metadata Tool{% endblock %}
 
 {% block extra_head %}
-<script>
-  $(function () {
-    $("#dateRecorded").datepicker({ dateFormat: "yy-mm-dd" });
-    $("#expiryDate").datepicker({ dateFormat: "yy-mm-dd" });
-  });
-
-  function validateForm(event) {
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
-    const filenameRegex = /^[^\\/:*?"<>|]+\.[a-zA-Z0-9]{1,5}$/;
-    let errors = [];
-
-    const title = document.getElementById("title").value.trim();
-    const dateRecorded = document.getElementById("dateRecorded").value.trim();
-    const expiryDate = document.getElementById("expiryDate").value.trim();
-    const producer = document.getElementById("producer").value.trim();
-    const length = document.getElementById("length").value.trim();
-    const filename = document.getElementById("filename").value.trim();
-    const comments = document.getElementById("comments").value.trim();
-
-    if (!title) errors.push("Title is required.");
-    if (!producer) errors.push("Producer is required.");
-    if (!dateRecorded.match(dateRegex)) errors.push("Date Recorded must be in YYYY-MM-DD format.");
-    if (expiryDate && !expiryDate.match(dateRegex)) errors.push("Expiry Date must be in YYYY-MM-DD format.");
-    if (!length.match(timeRegex)) errors.push("Length must be in HH:MM:SS format.");
-    if (!filename.match(filenameRegex)) errors.push("Filename must be valid with an extension (e.g., myfile.mp4).");
-    if (comments.length > 255) errors.push("Comments must be under 255 characters.");
-
-    if (errors.length > 0) {
-      event.preventDefault();
-      alert(errors.join("\n"));
-    }
-  }
-</script>
+<style>
+  .required-star { color: #dc3545; }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-8">
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <h3 class="card-title mb-0">{% if action == 'Create' %}Required Information to Submit a Program{% else %}Edit Program: {{ program.title }}{% endif %}</h3>
-      </div>
-      <div class="card-body p-4">
-        {% if form.errors %}
-          <div class="alert alert-danger">
-            <h6 class="alert-heading">Please fix the following errors:</h6>
-            <ul class="mb-0">
-              {% for field in form %}
-                {% for error in field.errors %}
-                  <li><strong>{{ field.label }}:</strong> {{ error }}</li>
-                {% endfor %}
-              {% endfor %}
-              {% for error in form.non_field_errors %}
-                <li>{{ error }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-        {% endif %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-film me-2 text-primary"></i>
+    {% if form.instance.pk %}
+      Edit Program: <span class="fw-bold">{{ form.instance.title }}</span>
+    {% else %}
+      Required Information to Submit a Program
+    {% endif %}
+  </div>
+  <div>
+    <a href="{% url 'program_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back to Programs
+    </a>
+  </div>
+</div>
 
-        <form method="post" onsubmit="validateForm(event)" novalidate>
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+    <div class="nb-card">
+      <div class="nb-card-header nb-card-header-primary">
+        <span>
+          <i class="bi bi-pencil-square me-1"></i>
+          {% if form.instance.pk %}Update Program Details{% else %}New Program Metadata Entry{% endif %}
+        </span>
+      </div>
+      <div class="p-4">
+        <form method="post" id="programForm" novalidate>
           {% csrf_token %}
 
-          <div class="mb-3">
-            <label for="title" class="form-label fw-bold">Title: <span class="text-danger">*</span></label>
-            {{ form.title }}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+              {% for error in form.non_field_errors %}
+                <div>{{ error }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <h6 class="text-uppercase text-muted fw-bold mb-3 border-bottom pb-1" style="font-size: 0.8rem; letter-spacing: 0.05em;">
+            1. Core Information
+          </h6>
+
+          <div class="row">
+            <div class="col-md-12 mb-3">
+              <label for="{{ form.title.id_for_label }}" class="form-label fw-semibold">Title: <span class="required-star">*</span></label>
+              {{ form.title }}
+              {% if form.title.errors %}
+                <div class="text-danger small mt-1">{{ form.title.errors.0 }}</div>
+              {% endif %}
+            </div>
           </div>
 
-          <div class="mb-3">
-            <label for="dateRecorded" class="form-label fw-bold">Date Recorded (YYYY-MM-DD): <span class="text-danger">*</span></label>
-            {{ form.date_recorded }}
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.date_recorded.id_for_label }}" class="form-label fw-semibold">Date Recorded (YYYY-MM-DD): <span class="required-star">*</span></label>
+              {{ form.date_recorded }}
+              {% if form.date_recorded.errors %}
+                <div class="text-danger small mt-1">{{ form.date_recorded.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.expiry_date.id_for_label }}" class="form-label fw-semibold">Expiry Date (YYYY-MM-DD):</label>
+              {{ form.expiry_date }}
+              {% if form.expiry_date.errors %}
+                <div class="text-danger small mt-1">{{ form.expiry_date.errors.0 }}</div>
+              {% endif %}
+            </div>
           </div>
 
-          <div class="mb-3">
-            <label for="expiryDate" class="form-label">Expiry Date (YYYY-MM-DD):</label>
-            {{ form.expiry_date }}
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.producer.id_for_label }}" class="form-label fw-semibold">Producer: <span class="required-star">*</span></label>
+              {{ form.producer }}
+              {% if form.producer.errors %}
+                <div class="text-danger small mt-1">{{ form.producer.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.length.id_for_label }}" class="form-label fw-semibold">Length (HH:MM:SS): <span class="required-star">*</span></label>
+              {{ form.length }}
+              {% if form.length.errors %}
+                <div class="text-danger small mt-1">{{ form.length.errors.0 }}</div>
+              {% endif %}
+            </div>
           </div>
 
-          <div class="mb-3">
-            <label for="producer" class="form-label fw-bold">Producer: <span class="text-danger">*</span></label>
-            {{ form.producer }}
+          <h6 class="text-uppercase text-muted fw-bold mt-4 mb-3 border-bottom pb-1" style="font-size: 0.8rem; letter-spacing: 0.05em;">
+            2. Categorization & Distribution
+          </h6>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.category.id_for_label }}" class="form-label fw-semibold">Category:</label>
+              {{ form.category }}
+              {% if form.category.errors %}
+                <div class="text-danger small mt-1">{{ form.category.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.source_code.id_for_label }}" class="form-label fw-semibold">Source Code:</label>
+              {{ form.source_code }}
+              {% if form.source_code.errors %}
+                <div class="text-danger small mt-1">{{ form.source_code.errors.0 }}</div>
+              {% endif %}
+            </div>
           </div>
 
-          <div class="mb-3">
-            <label for="length" class="form-label fw-bold">Length (HH:MM:SS): <span class="text-danger">*</span></label>
-            {{ form.length }}
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.community.id_for_label }}" class="form-label fw-semibold">Community: <small class="text-muted fw-normal">(hold Ctrl/Cmd to select multiple)</small></label>
+              {{ form.community }}
+              {% if form.community.errors %}
+                <div class="text-danger small mt-1">{{ form.community.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.share.id_for_label }}" class="form-label fw-semibold">Share with: <small class="text-muted fw-normal">(hold Ctrl/Cmd to select multiple)</small></label>
+              {{ form.share }}
+              {% if form.share.errors %}
+                <div class="text-danger small mt-1">{{ form.share.errors.0 }}</div>
+              {% endif %}
+            </div>
           </div>
 
-          <div class="mb-3">
-            <label for="category" class="form-label">Category:</label>
-            {{ form.category }}
+          <h6 class="text-uppercase text-muted fw-bold mt-4 mb-3 border-bottom pb-1" style="font-size: 0.8rem; letter-spacing: 0.05em;">
+            3. TV Series & Episodic Linkage
+          </h6>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="{{ form.series.id_for_label }}" class="form-label fw-semibold">Parent TV Series / Mini-Series / Multi-Part:</label>
+              {{ form.series }}
+              <div class="form-text">Optionally link this program as an episode of a series.</div>
+              {% if form.series.errors %}
+                <div class="text-danger small mt-1">{{ form.series.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-2 mb-3">
+              <label for="{{ form.season_number.id_for_label }}" class="form-label fw-semibold">Season #:</label>
+              {{ form.season_number }}
+              {% if form.season_number.errors %}
+                <div class="text-danger small mt-1">{{ form.season_number.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-2 mb-3">
+              <label for="{{ form.episode_number.id_for_label }}" class="form-label fw-semibold">Episode #:</label>
+              {{ form.episode_number }}
+              {% if form.episode_number.errors %}
+                <div class="text-danger small mt-1">{{ form.episode_number.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-2 mb-3">
+              <label for="{{ form.part_number.id_for_label }}" class="form-label fw-semibold">Part #:</label>
+              {{ form.part_number }}
+              {% if form.part_number.errors %}
+                <div class="text-danger small mt-1">{{ form.part_number.errors.0 }}</div>
+              {% endif %}
+            </div>
           </div>
 
-          <div class="mb-3">
-            <label for="community" class="form-label">Community:</label>
-            {{ form.community }}
-            <div class="form-text">Hold Ctrl (Cmd on Mac) to select multiple communities.</div>
-          </div>
+          <h6 class="text-uppercase text-muted fw-bold mt-4 mb-3 border-bottom pb-1" style="font-size: 0.8rem; letter-spacing: 0.05em;">
+            4. File Details & Comments
+          </h6>
 
           <div class="mb-3">
-            <label for="sourceCode" class="form-label">Source Code:</label>
-            {{ form.source_code }}
-          </div>
-
-          <div class="mb-3">
-            <label for="share" class="form-label">Share with:</label>
-            {{ form.share }}
-            <div class="form-text">Hold Ctrl (Cmd on Mac) to select multiple share regions.</div>
-          </div>
-
-          <div class="mb-3">
-            <label for="filename" class="form-label fw-bold">Upload Filename: <span class="text-danger">*</span></label>
+            <label for="{{ form.filename.id_for_label }}" class="form-label fw-semibold">Upload Filename: <span class="required-star">*</span></label>
             {{ form.filename }}
+            <div class="form-text">Must include an extension (e.g. program_video.mp4).</div>
+            {% if form.filename.errors %}
+              <div class="text-danger small mt-1">{{ form.filename.errors.0 }}</div>
+            {% endif %}
           </div>
 
           <div class="mb-3">
-            <label for="comments" class="form-label">Comments:</label>
+            <label for="{{ form.comments.id_for_label }}" class="form-label fw-semibold">Comments:</label>
             {{ form.comments }}
+            <div class="form-text">Maximum 255 characters.</div>
+            {% if form.comments.errors %}
+              <div class="text-danger small mt-1">{{ form.comments.errors.0 }}</div>
+            {% endif %}
           </div>
 
-          {% if action == 'Create' %}
-          <div class="form-check mb-4">
-            <input class="form-check-input" type="checkbox" name="download_txt" value="1" id="downloadTxtCheck">
-            <label class="form-check-label" for="downloadTxtCheck">
-              Download as attachment .txt metadata file on submission (legacy PHP mode)
-            </label>
+          <!-- Dynamic Custom Fields Section -->
+          {% if custom_field_inputs %}
+          <h6 class="text-uppercase text-muted fw-bold mt-4 mb-3 border-bottom pb-1" style="font-size: 0.8rem; letter-spacing: 0.05em;">
+            5. Additional Metadata Fields
+          </h6>
+          <div class="row">
+            {% for cf in custom_field_inputs %}
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">
+                  {{ cf.field.label }}:
+                  {% if cf.field.required %}<span class="required-star">*</span>{% endif %}
+                </label>
+                {% if cf.field.field_type == 'textarea' %}
+                  <textarea name="custom_field_{{ cf.field.name }}" class="form-control" rows="3" {% if cf.field.required %}required{% endif %}>{{ cf.value }}</textarea>
+                {% elif cf.field.field_type == 'boolean' %}
+                  <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" name="custom_field_{{ cf.field.name }}" value="true" {% if cf.value == 'True' or cf.value == 'true' or cf.value == '1' %}checked{% endif %}>
+                    <label class="form-check-label">{{ cf.field.label }}</label>
+                  </div>
+                {% elif cf.field.field_type == 'date' %}
+                  <input type="text" name="custom_field_{{ cf.field.name }}" class="form-control custom-datepicker" value="{{ cf.value }}" placeholder="YYYY-MM-DD" {% if cf.field.required %}required{% endif %}>
+                {% elif cf.field.field_type == 'integer' %}
+                  <input type="number" name="custom_field_{{ cf.field.name }}" class="form-control" value="{{ cf.value }}" {% if cf.field.required %}required{% endif %}>
+                {% elif cf.field.field_type == 'url' %}
+                  <input type="url" name="custom_field_{{ cf.field.name }}" class="form-control" value="{{ cf.value }}" placeholder="https://..." {% if cf.field.required %}required{% endif %}>
+                {% else %}
+                  <input type="text" name="custom_field_{{ cf.field.name }}" class="form-control" value="{{ cf.value }}" {% if cf.field.required %}required{% endif %}>
+                {% endif %}
+                {% if cf.field.description %}
+                  <div class="form-text">{{ cf.field.description }}</div>
+                {% endif %}
+              </div>
+            {% endfor %}
           </div>
           {% endif %}
 
-          <div class="d-flex justify-content-between align-items-center">
-            <a href="{% url 'program_list' %}" class="btn btn-secondary">Cancel</a>
-            <button type="submit" id="submit" name="submit" value="Submit" class="btn btn-primary px-4">
-              {% if action == 'Create' %}Submit{% else %}Save Changes{% endif %}
-            </button>
+          <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+            <a href="{% url 'program_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            <input type="submit" id="submit" name="submit" value="Submit Program" class="btn btn-primary px-4">
           </div>
         </form>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  $(function () {
+    $("#id_date_recorded").datepicker({ dateFormat: "yy-mm-dd" });
+    $("#id_expiry_date").datepicker({ dateFormat: "yy-mm-dd" });
+    $(".custom-datepicker").datepicker({ dateFormat: "yy-mm-dd" });
+
+    // Client-side validation matching index.php
+    $("#programForm").on("submit", function (event) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
+      const filenameRegex = /^[^\\\/:*?"<>|]+\.[a-zA-Z0-9]{1,5}$/;
+      let errors = [];
+
+      const title = $("#id_title").val().trim();
+      const dateRecorded = $("#id_date_recorded").val().trim();
+      const expiryDate = $("#id_expiry_date").val().trim();
+      const producer = $("#id_producer").val().trim();
+      const length = $("#id_length").val().trim();
+      const filename = $("#id_filename").val().trim();
+      const comments = $("#id_comments").val().trim();
+
+      if (!title) errors.push("Title is required.");
+      if (!producer) errors.push("Producer is required.");
+      if (!dateRecorded.match(dateRegex)) errors.push("Date Recorded must be in YYYY-MM-DD format.");
+      if (expiryDate && !expiryDate.match(dateRegex)) errors.push("Expiry Date must be in YYYY-MM-DD format.");
+      if (!length.match(timeRegex)) errors.push("Length must be in HH:MM:SS format.");
+      if (!filename.match(filenameRegex)) errors.push("Filename must be valid with an extension (e.g., myfile.mp4).");
+      if (comments.length > 255) errors.push("Comments must be under 255 characters.");
+
+      if (errors.length > 0) {
+        event.preventDefault();
+        alert(errors.join("\n"));
+        return false;
+      }
+    });
+  });
+</script>
 {% endblock %}

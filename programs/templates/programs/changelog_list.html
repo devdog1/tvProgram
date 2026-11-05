@@ -1,0 +1,83 @@
+{% extends "programs/base.html" %}
+
+{% block title %}Change Log - WCGtv Metadata Tool{% endblock %}
+
+{% block content %}
+<div class="nb-page-title">
+  <div>
+    <i class="bi bi-clock-history me-2 text-primary"></i> Change Log & Audit History
+    <small class="text-muted fs-6 ms-2">Full versioning and audit trail of changes</small>
+  </div>
+</div>
+
+<div class="nb-card">
+  <div class="nb-card-header nb-card-header-primary">
+    <span><i class="bi bi-clock-history me-1"></i> Recorded Changes</span>
+    <span class="badge bg-light text-dark">{{ logs|length }} Entries</span>
+  </div>
+  <div class="p-3">
+    <div class="table-responsive">
+      <table id="changeLogTable" class="table table-sm table-striped table-hover align-middle border" style="font-size: 0.85rem;">
+        <thead class="table-light">
+          <tr>
+            <th>Time</th>
+            <th>Username</th>
+            <th>Action</th>
+            <th>Type</th>
+            <th>Object</th>
+            <th>Details / Delta</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td style="color: #0d6efd; font-family: monospace;">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+            <td class="fw-semibold">{{ log.user_display|default:"System" }}</td>
+            <td>
+              {% if log.action == 'Created' %}
+                <span class="badge bg-success nb-badge-action">Created</span>
+              {% elif log.action == 'Updated' %}
+                <span class="badge bg-primary nb-badge-action">Updated</span>
+              {% elif log.action == 'Deleted' %}
+                <span class="badge bg-danger nb-badge-action">Deleted</span>
+              {% elif log.action == 'Signed Off' %}
+                <span class="badge bg-info text-dark nb-badge-action">Signed Off</span>
+              {% elif log.action == 'Rejected' %}
+                <span class="badge bg-danger nb-badge-action">Rejected</span>
+              {% else %}
+                <span class="badge bg-secondary nb-badge-action">{{ log.action }}</span>
+              {% endif %}
+            </td>
+            <td>{{ log.object_type }}</td>
+            <td class="fw-medium text-dark">{{ log.object_repr }}</td>
+            <td style="max-width: 350px;">
+              {% if log.details %}
+                <code class="text-muted text-break" style="font-size: 0.75rem;">{{ log.details }}</code>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-3">No change history recorded yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  $(document).ready(function () {
+    $('#changeLogTable').DataTable({
+      order: [[0, 'desc']],
+      pageLength: 25,
+      responsive: true
+    });
+  });
+</script>
+{% endblock %}

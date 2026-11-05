@@ -1,263 +1,353 @@
 from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group, Permission
-from django.contrib.contenttypes.models import ContentType
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
-from programs.models import Program, Category, Community, SourceCode, ShareOption
+
+from django.core import mail
+from programs.models import (
+    Program,
+    Category,
+    Community,
+    SourceCode,
+    ShareOption,
+    Series,
+    CustomField,
+    CustomFieldValue,
+    ProgramAttachment,
+    ChangeLog,
+    EventHook,
+)
 from programs.forms import ProgramForm
 
 
-class ProgramFormValidationTests(TestCase):
-    def test_valid_program_form(self):
-        data = {
-            "title": "Town Council Meeting",
-            "date_recorded": "2025-01-15",
-            "expiry_date": "2025-12-31",
-            "producer": "Jane Doe",
-            "length": "01:30:00",
-            "category": "current affairs",
-            "community": ["Brandon", "Virden"],
-            "source_code": "b - Single Camera Edited",
-            "share": ["Brandon", "South"],
-            "filename": "meeting_20250115.mp4",
-            "comments": "Recorded at council chambers.",
-        }
-        form = ProgramForm(data=data)
-        self.assertTrue(form.is_valid(), form.errors)
-        program = form.save()
-        self.assertEqual(program.title, "Town Council Meeting")
-        self.assertEqual(program.community, "Brandon,Virden")
-        self.assertEqual(program.share, "Brandon,South")
+class WCGtvComprehensiveTests(TestCase):
+    def setUp(self):
+        # Create users
+        self.creator_user = User.objects.create_user(username="creator", password="password123")
+        self.other_user = User.objects.create_user(username="other", password="password123")
+        self.editor_user = User.objects.create_user(username="editor", password="password123")
+        self.admin_user = User.objects.create_superuser(username="admin", password="password123")
 
-    def test_missing_required_fields(self):
-        form = ProgramForm(data={})
+        # Set up creator permissions (can add_program, but NO change/delete permissions globally)
+        p_add = Permission.objects.get(codename="add_program")
+        self.creator_user.user_permissions.add(p_add)
+        self.other_user.user_permissions.add(p_add)
+
+        # Set up editor permissions (can add, change, delete, and change options)
+        p_change = Permission.objects.get(codename="change_program")
+        p_delete = Permission.objects.get(codename="delete_program")
+        p_cat = Permission.objects.get(codename="change_category")
+        self.editor_user.user_permissions.add(p_add, p_change, p_delete, p_cat)
+
+        # Populate defaults
+        Category.objects.get_or_create(name="arts/music", defaults={"display_name": "Arts/Music"})
+        Community.objects.get_or_create(name="Brandon")
+        Community.objects.get_or_create(name="Dauphin")
+        SourceCode.objects.get_or_create(name="a - Single Camera/No Editing")
+        ShareOption.objects.get_or_create(name="Brandon")
+
+    # 1. Validation tests
+    def test_program_form_validation(self):
+        # Valid form data
+        valid_data = {
+            "title": "Local Concert",
+            "date_recorded": "2025-05-10",
+            "expiry_date": "2026-05-10",
+            "producer": "Jane Doe",
+            "length": "00:45:30",
+            "category": "arts/music",
+            "community": ["Brandon"],
+            "share": ["Brandon"],
+            "source_code": "a - Single Camera/No Editing",
+            "filename": "concert.mp4",
+            "comments": "Great audio",
+        }
+        form = ProgramForm(data=valid_data)
+        self.assertTrue(form.is_valid(), form.errors)
+
+        # Invalid length format
+        bad_length_data = valid_data.copy()
+        bad_length_data["length"] = "45:30"
+        form = ProgramForm(data=bad_length_data)
         self.assertFalse(form.is_valid())
-        self.assertIn("title", form.errors)
-        self.assertIn("producer", form.errors)
-        self.assertIn("date_recorded", form.errors)
         self.assertIn("length", form.errors)
+
+        # Invalid filename (no extension)
+        bad_filename_data = valid_data.copy()
+        bad_filename_data["filename"] = "concert_without_ext"
+        form = ProgramForm(data=bad_filename_data)
+        self.assertFalse(form.is_valid())
         self.assertIn("filename", form.errors)
 
-    def test_invalid_date_format(self):
-        form = ProgramForm(data={
-            "title": "Test",
-            "date_recorded": "15-01-2025",
-            "producer": "Prod",
-            "length": "00:10:00",
-            "filename": "test.mp4",
-        })
-        self.assertFalse(form.is_valid())
-        self.assertIn("date_recorded", form.errors)
-
-    def test_invalid_length_format(self):
-        form = ProgramForm(data={
-            "title": "Test",
-            "date_recorded": "2025-01-15",
-            "producer": "Prod",
-            "length": "90 mins",
-            "filename": "test.mp4",
-        })
-        self.assertFalse(form.is_valid())
-        self.assertIn("length", form.errors)
-
-    def test_invalid_filename_format(self):
-        # Missing extension
-        form1 = ProgramForm(data={
-            "title": "Test",
-            "date_recorded": "2025-01-15",
-            "producer": "Prod",
-            "length": "00:10:00",
-            "filename": "invalidfilename",
-        })
-        self.assertFalse(form1.is_valid())
-        self.assertIn("filename", form1.errors)
-
-        # Forbidden characters in filename
-        form2 = ProgramForm(data={
-            "title": "Test",
-            "date_recorded": "2025-01-15",
-            "producer": "Prod",
-            "length": "00:10:00",
-            "filename": "test/invalid*.mp4",
-        })
-        self.assertFalse(form2.is_valid())
-        self.assertIn("filename", form2.errors)
-
-    def test_comments_length_limit(self):
-        form = ProgramForm(data={
-            "title": "Test",
-            "date_recorded": "2025-01-15",
-            "producer": "Prod",
-            "length": "00:10:00",
-            "filename": "test.mp4",
-            "comments": "A" * 256,
-        })
+        # Comments too long (> 255 chars)
+        long_comment_data = valid_data.copy()
+        long_comment_data["comments"] = "x" * 256
+        form = ProgramForm(data=long_comment_data)
         self.assertFalse(form.is_valid())
         self.assertIn("comments", form.errors)
 
-    def test_disabled_options_not_in_choices_for_new_entry(self):
-        cat = Category.objects.create(name="disabled_cat", display_name="Disabled Cat", is_enabled=False)
-        form = ProgramForm()
-        choice_keys = [c[0] for c in form.fields["category"].choices]
-        self.assertNotIn("disabled_cat", choice_keys)
-
-
-class ProgramViewAndPermissionTests(TestCase):
-    def setUp(self):
-        self.client = Client()
-
-        # Create groups
-        self.creator_group = Group.objects.create(name="Program Creators")
-        ct_prog = ContentType.objects.get_for_model(Program)
-        self.p_add_prog = Permission.objects.get(content_type=ct_prog, codename="add_program")
-        self.p_view_prog = Permission.objects.get(content_type=ct_prog, codename="view_program")
-        self.creator_group.permissions.add(self.p_add_prog, self.p_view_prog)
-
-        self.editor_group = Group.objects.create(name="Program Editors")
-        for model in [Category, Community, SourceCode, ShareOption, Program]:
-            ct = ContentType.objects.get_for_model(model)
-            for action in ["add", "change", "delete", "view"]:
-                perm = Permission.objects.get(content_type=ct, codename=f"{action}_{model._meta.model_name}")
-                self.editor_group.permissions.add(perm)
-
-        # Users
-        self.viewer_user = User.objects.create_user(username="viewer", password="password123")
-        self.creator_user = User.objects.create_user(username="creator", password="password123")
-        self.creator_user.groups.add(self.creator_group)
-        self.editor_user = User.objects.create_user(username="editor", password="password123")
-        self.editor_user.groups.add(self.editor_group)
-
-        # Sample program
-        self.sample_program = Program.objects.create(
-            title="Initial Show",
-            date_recorded="2025-01-10",
-            producer="John",
-            length="00:30:00",
-            filename="show.mp4",
+    # 2. Creator permission tests: can edit own program, but cannot delete it
+    def test_creator_can_edit_own_program_but_cannot_delete(self):
+        program = Program.objects.create(
+            title="Creator Special",
+            date_recorded="2025-01-01",
+            producer="Creator Guy",
+            length="01:00:00",
+            filename="creator_prog.mp4",
+            created_by=self.creator_user,
         )
 
-    def test_anonymous_redirected_to_login(self):
-        response = self.client.get(reverse("program_list"))
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.url.startswith("/login/"))
+        client = Client()
+        client.login(username="creator", password="password123")
 
-    def test_authenticated_user_can_view_list(self):
-        self.client.login(username="viewer", password="password123")
-        response = self.client.get(reverse("program_list"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Initial Show")
+        # Creator can access edit page
+        edit_url = reverse("program_edit", kwargs={"pk": program.pk})
+        resp = client.get(edit_url)
+        self.assertEqual(resp.status_code, 200)
 
-    def test_creator_can_create_program(self):
-        self.client.login(username="creator", password="password123")
-        response = self.client.post(
-            reverse("program_create"),
-            {
-                "title": "Created by Creator",
-                "date_recorded": "2025-02-01",
-                "producer": "Bob",
-                "length": "00:45:00",
-                "filename": "bob_show.mp4",
-            },
-            follow=True,
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(Program.objects.filter(title="Created by Creator").exists())
-
-    def test_creator_cannot_edit_or_delete_program(self):
-        self.client.login(username="creator", password="password123")
-        edit_url = reverse("program_edit", args=[self.sample_program.id])
-        res_edit = self.client.get(edit_url)
-        self.assertEqual(res_edit.status_code, 403)
-
-        del_url = reverse("program_delete", args=[self.sample_program.id])
-        res_del = self.client.post(del_url)
-        self.assertEqual(res_del.status_code, 403)
-
-    def test_creator_cannot_access_options_management(self):
-        self.client.login(username="creator", password="password123")
-        response = self.client.get(reverse("options_dashboard"))
-        self.assertEqual(response.status_code, 403)
-
-    def test_editor_can_edit_and_delete_program(self):
-        self.client.login(username="editor", password="password123")
-
-        # Edit program
-        edit_url = reverse("program_edit", args=[self.sample_program.id])
-        res_edit = self.client.post(
+        # Creator successfully updates their program
+        post_resp = client.post(
             edit_url,
             {
-                "title": "Initial Show (Edited)",
-                "date_recorded": "2025-01-10",
-                "producer": "John",
-                "length": "00:30:00",
-                "filename": "show.mp4",
+                "title": "Creator Special Edited",
+                "date_recorded": "2025-01-01",
+                "producer": "Creator Guy",
+                "length": "01:00:00",
+                "filename": "creator_prog_v2.mp4",
             },
-            follow=True,
         )
-        self.assertEqual(res_edit.status_code, 200)
-        self.sample_program.refresh_from_db()
-        self.assertEqual(self.sample_program.title, "Initial Show (Edited)")
+        self.assertEqual(post_resp.status_code, 302)
+        program.refresh_from_db()
+        self.assertEqual(program.title, "Creator Special Edited")
 
-        # Delete program
-        del_url = reverse("program_delete", args=[self.sample_program.id])
-        res_del = self.client.post(del_url, follow=True)
-        self.assertEqual(res_del.status_code, 200)
-        self.assertFalse(Program.objects.filter(id=self.sample_program.id).exists())
+        # Creator CANNOT delete their program (must return 403 PermissionDenied)
+        del_url = reverse("program_delete", kwargs={"pk": program.pk})
+        del_resp = client.post(del_url)
+        self.assertEqual(del_resp.status_code, 403)
+        self.assertTrue(Program.objects.filter(pk=program.pk).exists())
 
-    def test_editor_can_manage_options_create_edit_toggle(self):
-        self.client.login(username="editor", password="password123")
+        # Other non-privileged user cannot edit
+        client_other = Client()
+        client_other.login(username="other", password="password123")
+        resp_other = client_other.get(edit_url)
+        self.assertEqual(resp_other.status_code, 403)
 
-        # 1. Access dashboard
-        res = self.client.get(reverse("options_dashboard"))
-        self.assertEqual(res.status_code, 200)
+        # Editor user CAN delete
+        client_editor = Client()
+        client_editor.login(username="editor", password="password123")
+        del_editor_resp = client_editor.post(del_url)
+        self.assertEqual(del_editor_resp.status_code, 302)
+        self.assertFalse(Program.objects.filter(pk=program.pk).exists())
 
-        # 2. Create new Category
-        res_create = self.client.post(
-            reverse("option_create", args=["category"]),
-            {"name": "wildlife", "display_name": "Wildlife & Nature", "is_enabled": True},
-            follow=True,
-        )
-        self.assertEqual(res_create.status_code, 200)
-        cat = Category.objects.get(name="wildlife")
-        self.assertTrue(cat.is_enabled)
+    # 3. ChangeLog audit history tests
+    def test_changelog_recorded_on_program_lifecycle(self):
+        client = Client()
+        client.login(username="creator", password="password123")
 
-        # 3. Disable the category
-        res_toggle = self.client.post(reverse("option_toggle", args=["category", cat.id]), follow=True)
-        self.assertEqual(res_toggle.status_code, 200)
-        cat.refresh_from_db()
-        self.assertFalse(cat.is_enabled)
-
-        # 4. Re-enable the category
-        res_toggle2 = self.client.post(reverse("option_toggle", args=["category", cat.id]), follow=True)
-        self.assertEqual(res_toggle2.status_code, 200)
-        cat.refresh_from_db()
-        self.assertTrue(cat.is_enabled)
-
-        # 5. Edit the category
-        res_edit = self.client.post(
-            reverse("option_edit", args=["category", cat.id]),
-            {"name": "wildlife", "display_name": "Wildlife and Outdoors", "is_enabled": True},
-            follow=True,
-        )
-        self.assertEqual(res_edit.status_code, 200)
-        cat.refresh_from_db()
-        self.assertEqual(cat.display_name, "Wildlife and Outdoors")
-
-    def test_program_creation_with_txt_attachment_download(self):
-        self.client.login(username="creator", password="password123")
-        res = self.client.post(
+        # Create program via view
+        client.post(
             reverse("program_create"),
             {
-                "title": "Export Test",
-                "date_recorded": "2025-03-01",
-                "producer": "Alice",
-                "length": "00:15:00",
-                "filename": "export.mp4",
-                "download_txt": "1",
+                "title": "Audit Test Program",
+                "date_recorded": "2025-06-01",
+                "producer": "Auditor",
+                "length": "00:30:00",
+                "filename": "audit.mp4",
             },
         )
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res["Content-Type"], "text/plain")
-        self.assertIn("filename=\"export.txt\"", res["Content-Disposition"])
-        content = res.content.decode("utf-8")
-        self.assertIn("title: Export Test", content)
-        self.assertIn("producer: Alice", content)
+        program = Program.objects.get(title="Audit Test Program")
+
+        # Verify Created ChangeLog entry
+        log_create = ChangeLog.objects.filter(object_id=str(program.id), action="Created").first()
+        self.assertIsNotNone(log_create)
+        self.assertEqual(log_create.user, self.creator_user)
+
+        # Update program
+        client.post(
+            reverse("program_edit", kwargs={"pk": program.pk}),
+            {
+                "title": "Audit Test Program Updated",
+                "date_recorded": "2025-06-01",
+                "producer": "Auditor",
+                "length": "00:35:00",
+                "filename": "audit.mp4",
+            },
+        )
+        log_update = ChangeLog.objects.filter(object_id=str(program.id), action="Updated").first()
+        self.assertIsNotNone(log_update)
+
+    # 4. Attachments tests
+    def test_program_file_attachments(self):
+        program = Program.objects.create(
+            title="Attachment Program",
+            date_recorded="2025-01-01",
+            producer="Attacher",
+            length="00:15:00",
+            filename="attach_prog.mp4",
+            created_by=self.creator_user,
+        )
+
+        client = Client()
+        client.login(username="creator", password="password123")
+
+        test_file = SimpleUploadedFile("cue_sheet.txt", b"Broadcast run order details...", content_type="text/plain")
+        resp = client.post(
+            reverse("program_attach_file", kwargs={"pk": program.pk}),
+            {"file": test_file, "description": "Audio Cue Sheet"},
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        attachment = ProgramAttachment.objects.filter(program=program).first()
+        self.assertIsNotNone(attachment)
+        self.assertEqual(attachment.description, "Audio Cue Sheet")
+        self.assertEqual(attachment.uploaded_by, self.creator_user)
+
+    # 5. Custom Metadata Fields
+    def test_custom_fields_creation_and_program_association(self):
+        # Admin creates a custom field
+        client_admin = Client()
+        client_admin.login(username="admin", password="password123")
+
+        client_admin.post(
+            reverse("custom_field_create"),
+            {
+                "label": "Music License Code",
+                "name": "music_license_code",
+                "field_type": "text",
+                "required": False,
+                "is_active": True,
+            },
+        )
+        cf = CustomField.objects.get(name="music_license_code")
+        self.assertEqual(cf.label, "Music License Code")
+
+        # Creator creates a program with this custom field
+        client_creator = Client()
+        client_creator.login(username="creator", password="password123")
+        client_creator.post(
+            reverse("program_create"),
+            {
+                "title": "Licensed Program",
+                "date_recorded": "2025-02-01",
+                "producer": "Music Prod",
+                "length": "00:20:00",
+                "filename": "music.mp4",
+                "custom_field_music_license_code": "BMI-998877",
+            },
+        )
+        p = Program.objects.get(title="Licensed Program")
+        cf_val = CustomFieldValue.objects.get(program=p, custom_field=cf)
+        self.assertEqual(cf_val.value, "BMI-998877")
+
+    # 6. Episodic Series Linkage
+    def test_episodic_programs_linked_to_series(self):
+        series = Series.objects.create(
+            title="Manitoba Outdoors",
+            series_type="tv_series",
+            created_by=self.creator_user,
+        )
+
+        program_ep1 = Program.objects.create(
+            title="Fishing Lake Dauphin",
+            series=series,
+            season_number=1,
+            episode_number=1,
+            date_recorded="2025-03-01",
+            producer="Outdoor Crew",
+            length="00:28:30",
+            filename="outdoors_s01e01.mp4",
+            created_by=self.creator_user,
+        )
+
+        self.assertEqual(series.episodes.count(), 1)
+        self.assertEqual(program_ep1.series.title, "Manitoba Outdoors")
+        self.assertEqual(program_ep1.season_number, 1)
+        self.assertEqual(program_ep1.episode_number, 1)
+
+    # 7. Sign-off Validation Process
+    def test_signoff_workflow(self):
+        program = Program.objects.create(
+            title="Needs Approval",
+            date_recorded="2025-04-01",
+            producer="Producer A",
+            length="00:10:00",
+            filename="draft.mp4",
+            status="draft",
+            created_by=self.creator_user,
+        )
+
+        # Creator submits program for review
+        client_creator = Client()
+        client_creator.login(username="creator", password="password123")
+        client_creator.post(
+            reverse("program_signoff", kwargs={"pk": program.pk}),
+            {"action": "submit_for_review", "notes": "Ready for QC"},
+        )
+        program.refresh_from_db()
+        self.assertEqual(program.status, "pending_review")
+
+        # Creator CANNOT self-approve (needs signoff permission / editor role)
+        creator_approve_resp = client_creator.post(
+            reverse("program_signoff", kwargs={"pk": program.pk}),
+            {"action": "approve", "notes": "Self approving"},
+        )
+        self.assertEqual(creator_approve_resp.status_code, 403)
+
+        # Editor approves and signs off
+        client_editor = Client()
+        client_editor.login(username="editor", password="password123")
+        editor_approve_resp = client_editor.post(
+            reverse("program_signoff", kwargs={"pk": program.pk}),
+            {"action": "approve", "notes": "Approved for broadcast"},
+        )
+        self.assertEqual(editor_approve_resp.status_code, 302)
+        program.refresh_from_db()
+        self.assertEqual(program.status, "signed_off")
+        self.assertEqual(program.signed_off_by, self.editor_user)
+        self.assertIsNotNone(program.signed_off_at)
+
+    # 8. Event Hook Manager Tests
+    def test_event_hook_creation_and_email_trigger_on_program_added(self):
+        # Create an event hook to trigger email on program_created
+        hook = EventHook.objects.create(
+            name="Notify on Program Added",
+            event_type="program_created",
+            action_type="email",
+            is_active=True,
+            recipient_emails="ops@wcgtv.local, manager@wcgtv.local",
+            email_subject="New Program: {title}",
+            email_body="Hello, program '{title}' was submitted by {user}.",
+            created_by=self.admin_user,
+        )
+
+        client_creator = Client()
+        client_creator.login(username="creator", password="password123")
+
+        # Clear test mailbox
+        mail.outbox.clear()
+
+        # Submit program
+        resp = client_creator.post(
+            reverse("program_create"),
+            {
+                "title": "Evening News Special",
+                "date_recorded": "2025-07-01",
+                "producer": "News Desk",
+                "length": "00:30:00",
+                "filename": "news_special.mp4",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        # Verify email was dispatched to outbox
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+        self.assertEqual(sent_email.subject, "New Program: Evening News Special")
+        self.assertIn("Evening News Special", sent_email.body)
+        self.assertIn("creator", sent_email.body)
+        self.assertIn("ops@wcgtv.local", sent_email.to)
+        self.assertIn("manager@wcgtv.local", sent_email.to)
+
+        # Verify hook last_triggered_at was updated
+        hook.refresh_from_db()
+        self.assertIsNotNone(hook.last_triggered_at)

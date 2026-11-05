@@ -3,84 +3,145 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}WCGtv Metadata Tool{% endblock %}</title>
+  <title>{% block title %}WCGtv Metadata Platform{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
-  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/netbox.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-light">
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-    <div class="container-fluid">
-      <a class="navbar-brand fw-bold" href="{% url 'program_list' %}">WCGtv Metadata Tool</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav me-auto">
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'program_list' %}">Programs</a>
-          </li>
-          {% if user.is_authenticated %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'program_create' %}">New Program</a>
-            </li>
-            {% if can_edit_options or user.is_superuser %}
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'options_dashboard' %}">Manage System Options</a>
-              </li>
-            {% endif %}
-          {% endif %}
-        </ul>
-        <ul class="navbar-nav ms-auto">
-          {% if user.is_authenticated %}
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                Logged in as <strong>{{ user.username }}</strong>
-              </a>
-              <ul class="dropdown-menu dropdown-menu-end">
-                {% if user.is_staff %}
-                  <li><a class="dropdown-item" href="{% url 'admin:index' %}">Django Admin</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                {% endif %}
-                <li>
-                  <form method="post" action="{% url 'logout' %}">
-                    {% csrf_token %}
-                    <button type="submit" class="dropdown-item">Logout</button>
-                  </form>
-                </li>
-              </ul>
-            </li>
-          {% else %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'login' %}">Login</a>
-            </li>
-          {% endif %}
-        </ul>
+<body>
+  <div class="d-flex" id="wrapper">
+    <!-- NetBox Sidebar -->
+    <div id="sidebar-wrapper">
+      <a href="{% url 'dashboard' %}" class="sidebar-brand">
+        <i class="bi bi-tv text-primary"></i>
+        <div>
+          <span>WCGtv</span>
+          <small>Community Metadata</small>
+        </div>
+      </a>
+
+      <div class="sidebar-heading">Navigation</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+          </a>
+        </li>
+      </ul>
+
+      <div class="sidebar-heading">Organization & Media</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name in 'program_list,program_detail,program_create,program_edit' %}active{% endif %}" href="{% url 'program_list' %}">
+            <i class="bi bi-film"></i> Programs
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'series' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'series_list' %}">
+            <i class="bi bi-collection-play"></i> TV Series & Multi-part
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'signoff_queue' %}active{% endif %}" href="{% url 'signoff_queue' %}">
+            <i class="bi bi-check-circle"></i> Sign-off Queue
+          </a>
+        </li>
+      </ul>
+
+      {% if perms.programs.change_category or perms.programs.add_category or user.is_staff or user.is_superuser %}
+      <div class="sidebar-heading">Customization</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a class="nav-link {% if 'option' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'manage_options' %}">
+            <i class="bi bi-sliders"></i> Metadata Options
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'custom_field' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'custom_fields_list' %}">
+            <i class="bi bi-input-cursor-text"></i> Custom Fields
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'event_hook' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'event_hooks_list' %}">
+            <i class="bi bi-broadcast-pin"></i> Event Hooks
+          </a>
+        </li>
+      </ul>
+      {% endif %}
+
+      <div class="sidebar-heading">Operations</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'changelog_list' %}active{% endif %}" href="{% url 'changelog_list' %}">
+            <i class="bi bi-clock-history"></i> Change Log
+          </a>
+        </li>
+        {% if user.is_staff or user.is_superuser %}
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'admin:index' %}" target="_blank">
+            <i class="bi bi-shield-lock"></i> Django Admin
+          </a>
+        </li>
+        {% endif %}
+      </ul>
+
+      <div class="sidebar-footer">
+        <div>WCGtv Community Platform</div>
+        <small class="text-muted">NetBox Style Interface</small>
       </div>
     </div>
-  </nav>
 
-  <div class="container">
-    {% if messages %}
-      <div class="mb-3">
-        {% for message in messages %}
-          <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <!-- Page Content Area -->
+    <div id="content-wrapper">
+      <!-- Top Navigation / Search bar -->
+      <nav class="nb-navbar">
+        <form class="nb-search-box d-flex" method="get" action="{% url 'program_list' %}">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" name="q" class="form-control border-start-0" placeholder="Search programs, series, files..." value="{{ request.GET.q }}">
           </div>
-        {% endfor %}
-      </div>
-    {% endif %}
+        </form>
 
-    {% block content %}{% endblock %}
+        <div class="d-flex align-items-center gap-3">
+          {% if user.is_authenticated %}
+            <span class="badge bg-secondary"><i class="bi bi-person-fill"></i> {{ user.username }}</span>
+            <form method="post" action="{% url 'logout' %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.8rem;">
+                <i class="bi bi-box-arrow-right"></i> Logout
+              </button>
+            </form>
+          {% else %}
+            <a href="{% url 'login' %}" class="btn btn-outline-primary btn-sm">Login</a>
+          {% endif %}
+        </div>
+      </nav>
+
+      <!-- Main container -->
+      <div class="nb-content">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show py-2" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </div>
   </div>
 
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>
