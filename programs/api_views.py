@@ -166,6 +166,7 @@ class SeriesViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         series = serializer.save(created_by=self.request.user, status="draft")
         log_change(self.request.user, "Created", series, {"source": "API", "title": series.title})
+        trigger_event_hooks("series_created", series, self.request.user, details="Created via REST API")
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status

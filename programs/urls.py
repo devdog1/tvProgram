@@ -36,6 +36,7 @@ urlpatterns = [
 
     # Event Hook Manager
     path("event-hooks/", views.event_hooks_list, name="event_hooks_list"),
+    path("event-hooks/history/", views.event_hook_history, name="event_hook_history"),
     path("event-hooks/new/", views.event_hook_create, name="event_hook_create"),
     path("event-hooks/<int:pk>/edit/", views.event_hook_edit, name="event_hook_edit"),
     path("event-hooks/<int:pk>/toggle/", views.event_hook_toggle, name="event_hook_toggle"),

@@ -663,10 +663,20 @@ def series_detail(request, pk):
             val_str = f.default_value or ""
         custom_fields_data.append({"field": f, "value": val_str, "file_url": file_url})
 
+    change_logs = ChangeLog.objects.filter(
+        object_type="Series",
+        object_id=str(series.id),
+    ).order_by("-timestamp")
+
     return render(
         request,
         "programs/series_detail.html",
-        {"series": series, "user_can_approve": user_can_approve, "custom_fields_data": custom_fields_data},
+        {
+            "series": series,
+            "user_can_approve": user_can_approve,
+            "custom_fields_data": custom_fields_data,
+            "change_logs": change_logs,
+        },
     )
 
 
@@ -697,6 +707,12 @@ def series_create(request):
                         CustomFieldValue.objects.create(series=series, custom_field=cf, value=val)
 
             log_change(request.user, "Created", series, {"title": series.title, "type": series.series_type})
+            trigger_event_hooks(
+                event_name="series_created",
+                instance=series,
+                user=request.user,
+                details=f"Series '{series.title}' created by {request.user.username}",
+            )
             messages.success(request, f"Series '{series.title}' created.")
             return redirect("series_detail", pk=series.pk)
     else:
@@ -958,8 +974,52 @@ def signoff_queue(request):
 
 @login_required
 def changelog_list(request):
+    """
+    Global Change Log view. Strictly restricted to administrators.
+    Individual change logs remain visible to allowed users on program and series detail views.
+    """
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("Only administrators can view the global Change Log.")
+
     logs = ChangeLog.objects.all()[:100]
     return render(request, "programs/changelog_list.html", {"logs": logs})
+
+
+@login_required
+def event_hook_history(request):
+    """
+    Dedicated view for administrators to inspect event hook actions (emails and webhooks dispatched).
+    """
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("Only administrators can view event hook actions.")
+
+    qs = ChangeLog.objects.filter(action__in=["Dispatched Email", "Dispatched Webhook"])
+
+    action_type = request.GET.get("action_type", "").strip()
+    if action_type in ["Dispatched Email", "Dispatched Webhook"]:
+        qs = qs.filter(action=action_type)
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        qs = qs.filter(
+            Q(details__icontains=q)
+            | Q(object_repr__icontains=q)
+            | Q(user_display__icontains=q)
+        )
+
+    logs = qs.order_by("-timestamp")[:100]
+    total_count = qs.count()
+
+    return render(
+        request,
+        "programs/event_hook_history.html",
+        {
+            "logs": logs,
+            "actions_count": total_count,
+            "current_action_type": action_type,
+            "current_q": q,
+        },
+    )
 
 
 # ==============================================================================

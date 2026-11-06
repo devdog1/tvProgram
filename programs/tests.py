@@ -665,6 +665,74 @@ class WCGtvComprehensiveTests(TestCase):
         self.assertTrue(bool(cfv_series.file_upload))
         self.assertIn("bible", cfv_series.file_upload.name)
 
+    # 19. Series Created Event Hook and Dispatch History View Tests
+    def test_series_created_event_hook_and_dispatch_history_view(self):
+        # 1. Create a Series Created Event Hook
+        hook = EventHook.objects.create(
+            name="Notify on Series Added",
+            event_type="series_created",
+            action_type="email",
+            is_active=True,
+            recipient_emails="series-lead@wcgtv.local",
+            email_subject="Series Registered: {title}",
+            email_body="Series {title} was registered.",
+            created_by=self.admin_user,
+        )
+
+        client_creator = Client()
+        client_creator.login(username="creator", password="password123")
+        mail.outbox.clear()
+
+        # Create series
+        resp = client_creator.post(
+            reverse("series_create"),
+            {
+                "title": "Westman Wildlife",
+                "series_type": "tv_series",
+                "description": "Nature docu-series",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        # Confirm email was dispatched to outbox
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.subject, "Series Registered: Westman Wildlife")
+        self.assertIn("series-lead@wcgtv.local", sent.to)
+
+        # Confirm ChangeLog recorded the dispatched email action
+        series = Series.objects.get(title="Westman Wildlife")
+        dispatch_log = ChangeLog.objects.filter(action="Dispatched Email", object_id=str(series.id)).first()
+        self.assertIsNotNone(dispatch_log)
+
+        # 2. Test global Change Log admin restriction
+        # Creator cannot access global changelog -> 403
+        resp_creator_cl = client_creator.get(reverse("changelog_list"))
+        self.assertEqual(resp_creator_cl.status_code, 403)
+
+        # Admin CAN access global changelog -> 200
+        client_admin = Client()
+        client_admin.login(username="admin", password="password123")
+        resp_admin_cl = client_admin.get(reverse("changelog_list"))
+        self.assertEqual(resp_admin_cl.status_code, 200)
+
+        # Allowed user CAN view change log on series detail page
+        resp_series_detail = client_creator.get(reverse("series_detail", kwargs={"pk": series.pk}))
+        self.assertEqual(resp_series_detail.status_code, 200)
+        self.assertIn("change_logs", resp_series_detail.context)
+        self.assertTrue(len(resp_series_detail.context["change_logs"]) >= 1)
+
+        # 3. Test Event Hook Actions view (admin only)
+        # Creator cannot access -> 403
+        resp_creator_actions = client_creator.get(reverse("event_hook_history"))
+        self.assertEqual(resp_creator_actions.status_code, 403)
+
+        # Admin CAN access -> 200 and sees dispatched email
+        resp_admin_actions = client_admin.get(reverse("event_hook_history"))
+        self.assertEqual(resp_admin_actions.status_code, 200)
+        self.assertIn("logs", resp_admin_actions.context)
+        self.assertTrue(len(resp_admin_actions.context["logs"]) >= 1)
+
     # 15. User Group Ownership, Edit Permissions, and Draft Reset Tests
     def test_owner_group_permissions_and_edit_draft_reset(self):
         sports_group = Group.objects.create(name="Sports Production Group")
