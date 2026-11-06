@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 from .models import (
     Program,
     Series,
@@ -44,7 +46,8 @@ class ProgramAttachmentSerializer(serializers.ModelSerializer):
         model = ProgramAttachment
         fields = ["id", "program", "filename", "file_size", "uploaded_at", "download_url"]
 
-    def get_download_url(self, obj):
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_download_url(self, obj) -> str:
         if obj.file:
             return obj.file.url
         return None
@@ -121,7 +124,8 @@ class ProgramSerializer(serializers.ModelSerializer):
             "created",
         ]
 
-    def get_custom_fields(self, obj):
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_custom_fields(self, obj) -> dict:
         values = CustomFieldValue.objects.filter(program=obj).select_related("custom_field")
         res = {}
         for val in values:

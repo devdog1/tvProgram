@@ -36,6 +36,7 @@ class ProgramViewSet(viewsets.ModelViewSet):
     - ?include_pending=true (or 1, yes)
     - ?status=pending_review (or ?status=all, ?status=draft, etc.)
     """
+    queryset = Program.objects.all()
     serializer_class = ProgramSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -146,6 +147,7 @@ class SeriesViewSet(viewsets.ModelViewSet):
     """
     API ViewSet for TV Series, mini-series, and multi-part productions.
     """
+    queryset = Series.objects.all()
     serializer_class = SeriesSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -221,6 +223,7 @@ class APIKeyViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing API Keys.
     """
+    queryset = APIKey.objects.all()
     serializer_class = APIKeySerializer
     permission_classes = [permissions.IsAuthenticated]
 
