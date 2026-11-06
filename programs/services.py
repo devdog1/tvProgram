@@ -135,56 +135,59 @@ def send_wcgtv_email(subject, body, recipients, fail_silently=True):
     is_locmem_test = (getattr(settings, "EMAIL_BACKEND", "") == "django.core.mail.backends.locmem.EmailBackend")
 
     if smtp_config and smtp_config.is_active and not is_locmem_test:
-        # Utilize django-smtp-ssl or Django's EmailBackend depending on SSL requirements
-        from django.core.mail.backends.smtp import EmailBackend as DjangoSMTPBackend
+        from email.utils import parseaddr
+
+        def clean_addr(addr):
+            """Safely extracts addr-spec email part from address strings."""
+            parsed = parseaddr(str(addr))[1]
+            return parsed.strip() if parsed else str(addr).strip()
+
+        # Connect and send via smtplib using configured SMTP relay parameters
         try:
-            from django_smtp_ssl import SSLEmailBackend
-        except ImportError:
-            SSLEmailBackend = DjangoSMTPBackend
+            clean_envelope = clean_addr(envelope_from)
+            clean_recips = [clean_addr(r) for r in recipients if clean_addr(r)]
 
-        base_backend = SSLEmailBackend if (smtp_config.use_ssl and not smtp_config.use_tls) else DjangoSMTPBackend
+            if not clean_recips:
+                return 0
 
-        class PostfixEnvelopeSMTPBackend(base_backend):
-            def _send(self, email_message):
-                if not email_message.recipients():
-                    return False
-                from_email = self.prep_address(envelope_from)
-                recips = [self.prep_address(addr) for addr in email_message.recipients()]
-                message = email_message.message()
-                try:
-                    self.connection.sendmail(from_email, recips, message.as_bytes())
-                except smtplib.SMTPException as exc:
-                    logger.warning("SMTP sendmail error: %s", exc)
-                    if not self.fail_silently:
-                        raise
-                    return False
-                return True
-
-        try:
-            backend_kwargs = {
-                "host": smtp_config.host,
-                "port": smtp_config.port,
-                "username": smtp_config.username or None,
-                "password": smtp_config.password or None,
-                "timeout": smtp_config.timeout,
-                "fail_silently": False,
-            }
-            if base_backend == DjangoSMTPBackend:
-                backend_kwargs["use_tls"] = smtp_config.use_tls
-                backend_kwargs["use_ssl"] = smtp_config.use_ssl
-
-            custom_connection = PostfixEnvelopeSMTPBackend(**backend_kwargs)
+            # Build MIME email message
             msg = EmailMessage(
                 subject=subject,
                 body=body,
                 from_email=from_addr,
                 to=recipients,
                 headers=headers,
-                connection=custom_connection,
             )
-            sent = msg.send(fail_silently=False)
-            if sent:
-                return sent
+            raw_message_bytes = msg.message().as_bytes()
+
+            # Connect to SMTP relay server
+            smtp_cls = smtplib.SMTP_SSL if (smtp_config.use_ssl and not smtp_config.use_tls) else smtplib.SMTP
+            smtp_client = smtp_cls(smtp_config.host, smtp_config.port, timeout=smtp_config.timeout)
+
+            try:
+                if smtp_config.use_tls and not smtp_config.use_ssl:
+                    smtp_client.starttls()
+                if smtp_config.username and smtp_config.password:
+                    smtp_client.login(smtp_config.username, smtp_config.password)
+
+                # Send using Postfix envelope-from for MAIL FROM command
+                smtp_client.sendmail(clean_envelope, clean_recips, raw_message_bytes)
+                logger.info(
+                    "Successfully delivered message to SMTP relay %s:%s (envelope: %s, recipients: %s)",
+                    smtp_config.host,
+                    smtp_config.port,
+                    clean_envelope,
+                    ", ".join(clean_recips),
+                )
+                return len(clean_recips)
+            finally:
+                try:
+                    smtp_client.quit()
+                except Exception:
+                    try:
+                        smtp_client.close()
+                    except Exception:
+                        pass
         except Exception as exc:
             logger.warning(
                 "Custom SMTP relay (%s:%s) failed with %s: %s. Falling back to default Django backend.",
