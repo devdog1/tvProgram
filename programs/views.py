@@ -1195,14 +1195,18 @@ def smtp_settings_view(request):
 
 
 # ==============================================================================
-# API Key Management Views
+# API Key Management Views (Admins only)
 # ==============================================================================
 
 @login_required
 def api_keys_view(request):
     """
     View and generate API keys for automated integrations.
+    Strictly restricted to administrators.
     """
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("Only administrators can manage API keys.")
+
     new_key = None
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
@@ -1214,11 +1218,7 @@ def api_keys_view(request):
         else:
             messages.error(request, "Key Name is required.")
 
-    # Show keys owned by the user (or all if superuser)
-    if request.user.is_superuser:
-        keys = APIKey.objects.all()
-    else:
-        keys = APIKey.objects.filter(user=request.user)
+    keys = APIKey.objects.all().select_related("user")
 
     return render(
         request,
@@ -1229,11 +1229,10 @@ def api_keys_view(request):
 
 @login_required
 def api_key_toggle(request, pk):
-    if request.user.is_superuser:
-        key_obj = get_object_or_404(APIKey, pk=pk)
-    else:
-        key_obj = get_object_or_404(APIKey, pk=pk, user=request.user)
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("Only administrators can manage API keys.")
 
+    key_obj = get_object_or_404(APIKey, pk=pk)
     if request.method == "POST":
         key_obj.is_active = not key_obj.is_active
         key_obj.save()
@@ -1246,11 +1245,10 @@ def api_key_toggle(request, pk):
 
 @login_required
 def api_key_delete(request, pk):
-    if request.user.is_superuser:
-        key_obj = get_object_or_404(APIKey, pk=pk)
-    else:
-        key_obj = get_object_or_404(APIKey, pk=pk, user=request.user)
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("Only administrators can manage API keys.")
 
+    key_obj = get_object_or_404(APIKey, pk=pk)
     if request.method == "POST":
         name = key_obj.name
         log_change(request.user, "Deleted", key_obj, {"name": name})

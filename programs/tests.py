@@ -1033,17 +1033,28 @@ class WCGtvComprehensiveTests(TestCase):
         resp_schema = client.get(reverse("api-schema"))
         self.assertEqual(resp_schema.status_code, 200)
 
-    # 18. API Key Management UI View Tests
-    def test_api_key_ui_view_generate_toggle_delete(self):
-        client = Client()
-        client.login(username="creator", password="password123")
+    # 18. API Key Management UI View Tests (Admin Only)
+    def test_api_key_ui_view_admin_only_access(self):
+        client_creator = Client()
+        client_creator.login(username="creator", password="password123")
 
-        # GET API keys view
-        resp = client.get(reverse("api_keys_view"))
-        self.assertEqual(resp.status_code, 200)
+        # Non-admin user (creator) GET API keys view -> 403 Forbidden
+        resp_creator = client_creator.get(reverse("api_keys_view"))
+        self.assertEqual(resp_creator.status_code, 403)
 
-        # POST create new API key
-        post_resp = client.post(reverse("api_keys_view"), {"name": "Test Key UI"})
+        # Non-admin POST create -> 403 Forbidden
+        resp_creator_post = client_creator.post(reverse("api_keys_view"), {"name": "Hacker Key"})
+        self.assertEqual(resp_creator_post.status_code, 403)
+
+        # Admin user has access
+        client_admin = Client()
+        client_admin.login(username="admin", password="password123")
+
+        resp_admin = client_admin.get(reverse("api_keys_view"))
+        self.assertEqual(resp_admin.status_code, 200)
+
+        # Admin POST create new API key
+        post_resp = client_admin.post(reverse("api_keys_view"), {"name": "Test Key UI"})
         self.assertEqual(post_resp.status_code, 200)
         self.assertIn("new_key", post_resp.context)
         key_str = post_resp.context["new_key"]
@@ -1053,12 +1064,12 @@ class WCGtvComprehensiveTests(TestCase):
         self.assertTrue(created_key.is_active)
 
         # Toggle disable
-        toggle_resp = client.post(reverse("api_key_toggle", kwargs={"pk": created_key.pk}))
+        toggle_resp = client_admin.post(reverse("api_key_toggle", kwargs={"pk": created_key.pk}))
         self.assertRedirects(toggle_resp, reverse("api_keys_view"))
         created_key.refresh_from_db()
         self.assertFalse(created_key.is_active)
 
         # Delete key
-        del_resp = client.post(reverse("api_key_delete", kwargs={"pk": created_key.pk}))
+        del_resp = client_admin.post(reverse("api_key_delete", kwargs={"pk": created_key.pk}))
         self.assertRedirects(del_resp, reverse("api_keys_view"))
         self.assertFalse(APIKey.objects.filter(pk=created_key.pk).exists())

@@ -338,6 +338,8 @@ class ChangeLog(models.Model):
         ("Deleted", "Deleted"),
         ("Signed Off", "Signed Off"),
         ("Rejected", "Rejected"),
+        ("Dispatched Email", "Dispatched Email"),
+        ("Dispatched Webhook", "Dispatched Webhook"),
     ]
 
     timestamp = models.DateTimeField(auto_now_add=True)

@@ -222,16 +222,14 @@ class ShareOptionViewSet(viewsets.ReadOnlyModelViewSet):
 class APIKeyViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing API Keys.
+    Only administrators can create or manage API keys.
     """
     queryset = APIKey.objects.all()
     serializer_class = APIKeySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return APIKey.objects.all().select_related("user")
-        return APIKey.objects.filter(user=user)
+        return APIKey.objects.all().select_related("user").order_by("-created_at")
 
     def create(self, request, *args, **kwargs):
         name = request.data.get("name", "").strip() or f"API Key for {request.user.username}"

@@ -106,13 +106,17 @@ def can_sign_off(user):
 def send_wcgtv_email(subject, body, recipients, fail_silently=True):
     """
     Sends email using configured SMTPSettings relay and envelope from (Return-Path).
-    Falls back cleanly to Django test runner outbox / settings backend during automated tests.
+    If custom SMTP relay connection fails (or host unreachable), falls back cleanly
+    to Django's configured default backend (e.g. console/locmem) so messages are never lost.
     """
+    import logging
     from django.core.mail import EmailMessage
     from django.core.mail.backends.smtp import EmailBackend
     from django.conf import settings
     from .models import SMTPSettings
     import smtplib
+
+    logger = logging.getLogger("programs")
 
     if not recipients:
         return 0
@@ -127,8 +131,7 @@ def send_wcgtv_email(subject, body, recipients, fail_silently=True):
         "X-Envelope-From": envelope_from,
     }
 
-    connection = None
-    # If custom SMTP relay settings are active and not in locmem/test backend override mode
+    # If custom SMTP relay settings are active and not in locmem test backend mode
     is_locmem_test = (getattr(settings, "EMAIL_BACKEND", "") == "django.core.mail.backends.locmem.EmailBackend")
 
     if smtp_config and smtp_config.is_active and not is_locmem_test:
@@ -136,38 +139,66 @@ def send_wcgtv_email(subject, body, recipients, fail_silently=True):
             def _send(self, email_message):
                 if not email_message.recipients():
                     return False
-                # Postfix envelope from for MAIL FROM command
                 from_email = self.prep_address(envelope_from)
                 recips = [self.prep_address(addr) for addr in email_message.recipients()]
                 message = email_message.message()
                 try:
                     self.connection.sendmail(from_email, recips, message.as_bytes())
-                except smtplib.SMTPException:
+                except smtplib.SMTPException as exc:
+                    logger.warning("SMTP sendmail error: %s", exc)
                     if not self.fail_silently:
                         raise
                     return False
                 return True
 
-        connection = PostfixEnvelopeSMTPBackend(
-            host=smtp_config.host,
-            port=smtp_config.port,
-            username=smtp_config.username or None,
-            password=smtp_config.password or None,
-            use_tls=smtp_config.use_tls,
-            use_ssl=smtp_config.use_ssl,
-            timeout=smtp_config.timeout,
-            fail_silently=fail_silently,
-        )
+        try:
+            custom_connection = PostfixEnvelopeSMTPBackend(
+                host=smtp_config.host,
+                port=smtp_config.port,
+                username=smtp_config.username or None,
+                password=smtp_config.password or None,
+                use_tls=smtp_config.use_tls,
+                use_ssl=smtp_config.use_ssl,
+                timeout=smtp_config.timeout,
+                fail_silently=False,
+            )
+            msg = EmailMessage(
+                subject=subject,
+                body=body,
+                from_email=from_addr,
+                to=recipients,
+                headers=headers,
+                connection=custom_connection,
+            )
+            sent = msg.send(fail_silently=False)
+            if sent:
+                return sent
+        except Exception as exc:
+            logger.warning(
+                "Custom SMTP relay (%s:%s) failed with %s: %s. Falling back to default Django backend.",
+                smtp_config.host,
+                smtp_config.port,
+                type(exc).__name__,
+                exc,
+            )
+            if not fail_silently and is_locmem_test:
+                raise
 
-    msg = EmailMessage(
-        subject=subject,
-        body=body,
-        from_email=from_addr,
-        to=recipients,
-        headers=headers,
-        connection=connection,
-    )
-    return msg.send(fail_silently=fail_silently)
+    # Fallback to standard Django default connection (console / settings backend)
+    try:
+        fallback_msg = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=from_addr,
+            to=recipients,
+            headers=headers,
+        )
+        return fallback_msg.send(fail_silently=fail_silently)
+    except Exception as exc:
+        logger.error("Failed to send email via fallback backend: %s", exc)
+        if not fail_silently:
+            raise
+        return 0
 
 
 def trigger_event_hooks(event_name, instance, user=None, details=""):
@@ -175,16 +206,18 @@ def trigger_event_hooks(event_name, instance, user=None, details=""):
     Executes all active event hooks configured for `event_name`.
     e.g. event_name='program_created'
     """
+    import logging
     from django.utils import timezone
     from .models import EventHook
     import urllib.request
     import json
 
+    logger = logging.getLogger("programs")
     hooks = EventHook.objects.filter(event_type=event_name, is_active=True)
     if not hooks.exists():
         return
 
-    # Build context dictionary
+    # Build context dictionary with fallback for missing attributes
     title = getattr(instance, "title", str(instance))
     obj_id = getattr(instance, "id", "")
     producer = getattr(instance, "producer", "")
@@ -199,18 +232,53 @@ def trigger_event_hooks(event_name, instance, user=None, details=""):
         "details": details or "",
     }
 
+    class SafeDict(dict):
+        def __missing__(self, key):
+            return f"{{{key}}}"
+
+    safe_context = SafeDict(context)
+
     for hook in hooks:
         try:
             if hook.action_type == "email":
                 recipients = hook.recipient_list
                 if recipients:
-                    subject = (hook.email_subject or "[WCGtv] {event}: {title}").format(**context)
-                    body = (hook.email_body or "Event: {event}\nTitle: {title}").format(**context)
-                    send_wcgtv_email(
+                    subject_tmpl = hook.email_subject or "[WCGtv] {event}: {title}"
+                    body_tmpl = hook.email_body or "Event: {event}\nTitle: {title}"
+                    try:
+                        subject = subject_tmpl.format_map(safe_context)
+                    except Exception:
+                        subject = f"[WCGtv] {event_name}: {title}"
+                    try:
+                        body = body_tmpl.format_map(safe_context)
+                    except Exception:
+                        body = f"Event: {event_name}\nTitle: {title}\nDetails: {details}"
+
+                    sent_count = send_wcgtv_email(
                         subject=subject,
                         body=body,
                         recipients=recipients,
                         fail_silently=True,
+                    )
+                    logger.info(
+                        "Dispatched email hook '%s' for event '%s' (title: %s) to %d recipient(s): %s",
+                        hook.name,
+                        event_name,
+                        title,
+                        len(recipients),
+                        ", ".join(recipients),
+                    )
+                    log_change(
+                        user=user,
+                        action="Dispatched Email",
+                        instance=instance,
+                        changes_dict={
+                            "hook_name": hook.name,
+                            "event": event_name,
+                            "recipients": recipients,
+                            "subject": subject,
+                            "sent": bool(sent_count),
+                        },
                     )
             elif hook.action_type == "webhook" and hook.webhook_url:
                 payload = json.dumps(context).encode("utf-8")
@@ -218,15 +286,37 @@ def trigger_event_hooks(event_name, instance, user=None, details=""):
                 if hook.webhook_secret:
                     headers["X-WCGtv-Secret"] = hook.webhook_secret
                 req = urllib.request.Request(hook.webhook_url, data=payload, headers=headers, method="POST")
+                status_code = None
                 try:
-                    urllib.request.urlopen(req, timeout=5)
-                except Exception:
-                    pass
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        status_code = resp.getcode()
+                    logger.info(
+                        "Dispatched webhook hook '%s' for event '%s' to %s (HTTP %s)",
+                        hook.name,
+                        event_name,
+                        hook.webhook_url,
+                        status_code,
+                    )
+                except Exception as w_exc:
+                    logger.warning("Webhook request failed for %s: %s", hook.webhook_url, w_exc)
+                    status_code = f"Error: {w_exc}"
+
+                log_change(
+                    user=user,
+                    action="Dispatched Webhook",
+                    instance=instance,
+                    changes_dict={
+                        "hook_name": hook.name,
+                        "event": event_name,
+                        "webhook_url": hook.webhook_url,
+                        "status": str(status_code),
+                    },
+                )
 
             hook.last_triggered_at = timezone.now()
             hook.save(update_fields=["last_triggered_at"])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Error executing hook '%s': %s", hook.name, e)
 
 
 def process_bulk_program_csv(csv_content, user=None, preserve_ids=False, skip_errors=True):
