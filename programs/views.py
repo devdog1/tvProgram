@@ -458,6 +458,12 @@ def program_delete(request, pk):
             instance=program,
             changes_dict={"deleted_id": prog_id, "title": title},
         )
+        trigger_event_hooks(
+            event_name="program_deleted",
+            instance=program,
+            user=request.user,
+            details=f"Program '{title}' deleted by {request.user.username}",
+        )
         program.delete()
         messages.success(request, f"Program '{title}' was deleted successfully.")
         return redirect("program_list")
@@ -782,6 +788,12 @@ def series_edit(request, pk):
                         changes_cf[cf.label] = {"from": "", "to": new_val}
 
             log_change(request.user, "Updated", s, {"changed": form.changed_data, "custom_fields": changes_cf})
+            trigger_event_hooks(
+                event_name="series_updated",
+                instance=s,
+                user=request.user,
+                details=f"Series '{s.title}' updated by {request.user.username}",
+            )
             messages.success(request, f"Series '{s.title}' updated.")
             return redirect("series_detail", pk=s.pk)
     else:
@@ -806,6 +818,12 @@ def series_delete(request, pk):
     if request.method == "POST":
         title = series.title
         log_change(request.user, "Deleted", series, {"title": title})
+        trigger_event_hooks(
+            event_name="series_deleted",
+            instance=series,
+            user=request.user,
+            details=f"Series '{title}' deleted by {request.user.username}",
+        )
         series.delete()
         messages.success(request, f"Series '{title}' deleted.")
         return redirect("series_list")
@@ -852,6 +870,12 @@ def series_signoff(request, pk):
             series.sign_off_notes = notes
             series.save()
             log_change(request.user, "Rejected", series, {"decision": "Rejected", "notes": notes})
+            trigger_event_hooks(
+                event_name="series_rejected",
+                instance=series,
+                user=request.user,
+                details=f"Rejected by {request.user.username}. Notes: {notes}",
+            )
             messages.warning(request, f"Series '{series.title}' rejected.")
         elif action == "reset_draft":
             series.status = "draft"

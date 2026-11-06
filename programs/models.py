@@ -368,10 +368,14 @@ class EventHook(models.Model):
     EVENT_CHOICES = [
         ("program_created", "Program Created / Added"),
         ("program_updated", "Program Updated"),
+        ("program_deleted", "Program Deleted"),
         ("program_signed_off", "Program Signed Off / Approved"),
         ("program_rejected", "Program Rejected"),
         ("series_created", "Series Created"),
+        ("series_updated", "Series Updated"),
+        ("series_deleted", "Series Deleted"),
         ("series_signed_off", "Series Signed Off / Approved"),
+        ("series_rejected", "Series Rejected"),
     ]
 
     ACTION_CHOICES = [

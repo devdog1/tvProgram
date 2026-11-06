@@ -178,9 +178,11 @@ class SeriesViewSet(viewsets.ModelViewSet):
 
         series = serializer.save(**kwargs)
         log_change(self.request.user, "Updated", series, {"source": "API", "title": series.title})
+        trigger_event_hooks("series_updated", series, self.request.user, details="Updated via REST API")
 
     def perform_destroy(self, instance):
         log_change(self.request.user, "Deleted", instance, {"source": "API", "title": instance.title})
+        trigger_event_hooks("series_deleted", instance, self.request.user, details="Deleted via REST API")
         instance.delete()
 
 
