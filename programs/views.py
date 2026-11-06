@@ -49,23 +49,49 @@ from .services import (
 
 @login_required
 def dashboard_view(request):
-    programs_count = Program.objects.count()
-    signed_off_count = Program.objects.filter(status="signed_off").count()
-    pending_review_count = Program.objects.filter(status="pending_review").count()
-    draft_count = Program.objects.filter(status="draft").count()
+    """
+    Dashboard view showing metrics and statistics scoped to the logged-in user and their access.
+    Non-admin users only see counts for programs and series owned by their user groups or created by them.
+    """
+    user = request.user
 
-    series_count = Series.objects.count()
-    tv_series_count = Series.objects.filter(series_type="tv_series").count()
-    mini_series_count = Series.objects.filter(series_type="mini_series").count()
-    multi_part_count = Series.objects.filter(series_type="multi_part").count()
+    # Scope programs based on user access
+    if user_can_view_all_programs(user):
+        programs_qs = Program.objects.all()
+    else:
+        user_groups = user.groups.all()
+        programs_qs = Program.objects.filter(Q(owner_group__in=user_groups) | Q(created_by=user)).distinct()
 
-    categories_count = Category.objects.count()
-    communities_count = Community.objects.count()
-    source_codes_count = SourceCode.objects.count()
-    custom_fields_count = CustomField.objects.count()
-    event_hooks_count = EventHook.objects.count()
+    programs_count = programs_qs.count()
+    signed_off_count = programs_qs.filter(status="signed_off").count()
+    pending_review_count = programs_qs.filter(status="pending_review").count()
+    draft_count = programs_qs.filter(status="draft").count()
 
-    recent_logs = ChangeLog.objects.all()[:10]
+    # Scope series based on user access
+    if user_can_view_all_series(user):
+        series_qs = Series.objects.all()
+    else:
+        user_groups = user.groups.all()
+        series_qs = Series.objects.filter(Q(owner_group__in=user_groups) | Q(created_by=user)).distinct()
+
+    series_count = series_qs.count()
+    tv_series_count = series_qs.filter(series_type="tv_series").count()
+    mini_series_count = series_qs.filter(series_type="mini_series").count()
+    multi_part_count = series_qs.filter(series_type="multi_part").count()
+
+    # System customization counts
+    can_manage_customization = (
+        user.is_staff
+        or user.is_superuser
+        or user.has_perm("programs.change_category")
+    )
+    categories_count = Category.objects.count() if can_manage_customization else 0
+    communities_count = Community.objects.count() if can_manage_customization else 0
+    source_codes_count = SourceCode.objects.count() if can_manage_customization else 0
+    custom_fields_count = CustomField.objects.count() if can_manage_customization else 0
+    event_hooks_count = EventHook.objects.count() if can_manage_customization else 0
+
+    recent_logs = ChangeLog.objects.all()[:10] if (user.is_staff or user.is_superuser) else []
 
     return render(
         request,
@@ -79,6 +105,7 @@ def dashboard_view(request):
             "tv_series_count": tv_series_count,
             "mini_series_count": mini_series_count,
             "multi_part_count": multi_part_count,
+            "can_manage_customization": can_manage_customization,
             "categories_count": categories_count,
             "communities_count": communities_count,
             "source_codes_count": source_codes_count,

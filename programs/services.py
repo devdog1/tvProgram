@@ -135,7 +135,16 @@ def send_wcgtv_email(subject, body, recipients, fail_silently=True):
     is_locmem_test = (getattr(settings, "EMAIL_BACKEND", "") == "django.core.mail.backends.locmem.EmailBackend")
 
     if smtp_config and smtp_config.is_active and not is_locmem_test:
-        class PostfixEnvelopeSMTPBackend(EmailBackend):
+        # Utilize django-smtp-ssl or Django's EmailBackend depending on SSL requirements
+        from django.core.mail.backends.smtp import EmailBackend as DjangoSMTPBackend
+        try:
+            from django_smtp_ssl import SSLEmailBackend
+        except ImportError:
+            SSLEmailBackend = DjangoSMTPBackend
+
+        base_backend = SSLEmailBackend if (smtp_config.use_ssl and not smtp_config.use_tls) else DjangoSMTPBackend
+
+        class PostfixEnvelopeSMTPBackend(base_backend):
             def _send(self, email_message):
                 if not email_message.recipients():
                     return False
@@ -152,16 +161,19 @@ def send_wcgtv_email(subject, body, recipients, fail_silently=True):
                 return True
 
         try:
-            custom_connection = PostfixEnvelopeSMTPBackend(
-                host=smtp_config.host,
-                port=smtp_config.port,
-                username=smtp_config.username or None,
-                password=smtp_config.password or None,
-                use_tls=smtp_config.use_tls,
-                use_ssl=smtp_config.use_ssl,
-                timeout=smtp_config.timeout,
-                fail_silently=False,
-            )
+            backend_kwargs = {
+                "host": smtp_config.host,
+                "port": smtp_config.port,
+                "username": smtp_config.username or None,
+                "password": smtp_config.password or None,
+                "timeout": smtp_config.timeout,
+                "fail_silently": False,
+            }
+            if base_backend == DjangoSMTPBackend:
+                backend_kwargs["use_tls"] = smtp_config.use_tls
+                backend_kwargs["use_ssl"] = smtp_config.use_ssl
+
+            custom_connection = PostfixEnvelopeSMTPBackend(**backend_kwargs)
             msg = EmailMessage(
                 subject=subject,
                 body=body,

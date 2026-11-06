@@ -733,6 +733,66 @@ class WCGtvComprehensiveTests(TestCase):
         self.assertIn("logs", resp_admin_actions.context)
         self.assertTrue(len(resp_admin_actions.context["logs"]) >= 1)
 
+    # 20. Dashboard Scoping Tests based on User Access
+    def test_dashboard_scoping_by_user_access(self):
+        group_sports = Group.objects.create(name="Sports Producers")
+        group_news = Group.objects.create(name="News Producers")
+
+        user_sports = User.objects.create_user(username="sports_guy", password="password123")
+        user_sports.groups.add(group_sports)
+
+        user_news = User.objects.create_user(username="news_gal", password="password123")
+        user_news.groups.add(group_news)
+
+        # Create programs
+        Program.objects.create(
+            title="Sports Prog 1",
+            date_recorded="2025-01-01",
+            producer="P",
+            length="00:10:00",
+            filename="sp1.mp4",
+            owner_group=group_sports,
+            status="signed_off",
+        )
+        Program.objects.create(
+            title="News Prog 1",
+            date_recorded="2025-01-01",
+            producer="P",
+            length="00:10:00",
+            filename="np1.mp4",
+            owner_group=group_news,
+            status="signed_off",
+        )
+
+        # Create series
+        Series.objects.create(title="Sports Series 1", owner_group=group_sports)
+        Series.objects.create(title="News Series 1", owner_group=group_news)
+
+        # 1. Sports user visits dashboard: sees 1 program, 1 series
+        client = Client()
+        client.login(username="sports_guy", password="password123")
+        resp_sports = client.get(reverse("dashboard"))
+        self.assertEqual(resp_sports.status_code, 200)
+        self.assertEqual(resp_sports.context["programs_count"], 1)
+        self.assertEqual(resp_sports.context["series_count"], 1)
+        # Regular user does not see change log or Swagger link in HTML
+        content_sports = resp_sports.content.decode("utf-8")
+        self.assertNotIn("REST API (Swagger)", content_sports)
+        self.assertNotIn("API Keys", content_sports)
+        self.assertNotIn("Recent Change Activity", content_sports)
+
+        # 2. Admin visits dashboard: sees all 2 programs, 2 series, and admin links
+        client_admin = Client()
+        client_admin.login(username="admin", password="password123")
+        resp_admin = client_admin.get(reverse("dashboard"))
+        self.assertEqual(resp_admin.status_code, 200)
+        self.assertTrue(resp_admin.context["programs_count"] >= 2)
+        self.assertTrue(resp_admin.context["series_count"] >= 2)
+        content_admin = resp_admin.content.decode("utf-8")
+        self.assertIn("REST API (Swagger)", content_admin)
+        self.assertIn("API Keys", content_admin)
+        self.assertIn("Change Log", content_admin)
+
     # 15. User Group Ownership, Edit Permissions, and Draft Reset Tests
     def test_owner_group_permissions_and_edit_draft_reset(self):
         sports_group = Group.objects.create(name="Sports Production Group")

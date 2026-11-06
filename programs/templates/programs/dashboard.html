@@ -95,7 +95,8 @@
     </div>
   </div>
 
-  <!-- Customization Widget -->
+  <!-- Customization Widget (Visible only if user has access to customization/options) -->
+  {% if can_manage_customization %}
   <div class="col-md-4">
     <div class="nb-card">
       <div class="nb-card-header nb-card-header-dark">
@@ -130,9 +131,11 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
 
-<!-- NetBox Change Log Table Widget (as visible in screenshot) -->
+<!-- NetBox Change Log Table Widget (Visible only to admins) -->
+{% if user.is_staff or user.is_superuser %}
 <div class="row">
   <div class="col-12">
     <div class="nb-card">
@@ -187,4 +190,5 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}

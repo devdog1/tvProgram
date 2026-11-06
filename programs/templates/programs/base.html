@@ -99,12 +99,12 @@
             <i class="bi bi-activity"></i> Event Hook Actions
           </a>
         </li>
-        {% endif %}
         <li class="nav-item">
           <a class="nav-link" href="{% url 'api-docs' %}" target="_blank">
             <i class="bi bi-file-code"></i> REST API (Swagger)
           </a>
         </li>
+        {% endif %}
         {% if user.is_staff or user.is_superuser or perms.programs.change_smtpsettings %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'smtp_settings' %}active{% endif %}" href="{% url 'smtp_settings' %}">
