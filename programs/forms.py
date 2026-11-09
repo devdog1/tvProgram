@@ -75,15 +75,16 @@ class ProgramForm(forms.ModelForm):
                 user_groups = user.groups.all()
                 self.fields["series"].queryset = Series.objects.filter(owner_group__in=user_groups)
 
-            # Limit owner_group choices: if superuser or has view_all_programs, can choose any group;
-            # otherwise, only groups the user belongs to.
-            can_view_all_p = user.is_superuser or user.has_perm("programs.view_all_programs")
-            if can_view_all_p:
+            # Limit owner_group choices: for admins (staff or superuser or view_all_programs), show all available groups;
+            # otherwise, only show groups the current logged-in user is a member of, defaulting to their first group.
+            is_admin = user.is_staff or user.is_superuser or user.has_perm("programs.view_all_programs")
+            if is_admin:
                 self.fields["owner_group"].queryset = Group.objects.all()
             else:
                 self.fields["owner_group"].queryset = user.groups.all()
-                if not self.instance.pk and user.groups.exists():
-                    self.initial["owner_group"] = user.groups.first()
+
+            if not self.instance.pk and user.groups.exists():
+                self.initial.setdefault("owner_group", user.groups.first())
 
         # Populate Category dropdown
         cat_choices = [("", "-")] + [
@@ -162,13 +163,14 @@ class SeriesForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         from django.contrib.auth.models import Group
         if user:
-            can_view_all_s = user.is_superuser or user.has_perm("programs.view_all_series")
-            if can_view_all_s:
+            is_admin = user.is_staff or user.is_superuser or user.has_perm("programs.view_all_series")
+            if is_admin:
                 self.fields["owner_group"].queryset = Group.objects.all()
             else:
                 self.fields["owner_group"].queryset = user.groups.all()
-                if not self.instance.pk and user.groups.exists():
-                    self.initial["owner_group"] = user.groups.first()
+
+            if not self.instance.pk and user.groups.exists():
+                self.initial.setdefault("owner_group", user.groups.first())
 
 
 class CustomFieldForm(forms.ModelForm):

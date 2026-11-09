@@ -793,6 +793,47 @@ class WCGtvComprehensiveTests(TestCase):
         self.assertIn("API Keys", content_admin)
         self.assertIn("Change Log", content_admin)
 
+    # 21. Owner Group Selection Scoping and Default Assignment Tests
+    def test_owner_group_selection_scoped_to_membership_with_default(self):
+        from programs.forms import SeriesForm
+        group1 = Group.objects.create(name="Community Access Group 1")
+        group2 = Group.objects.create(name="Community Access Group 2")
+        group3 = Group.objects.create(name="Community Access Group 3")
+
+        user_member = User.objects.create_user(username="member_user", password="password123")
+        # Add to group2 and group3 (first group is group2)
+        user_member.groups.add(group2, group3)
+
+        admin_user = User.objects.create_user(username="admin_group_tester", password="password123", is_staff=True)
+
+        # 1. Normal user ProgramForm
+        p_form_user = ProgramForm(user=user_member)
+        user_groups_qs = p_form_user.fields["owner_group"].queryset
+        self.assertEqual(user_groups_qs.count(), 2)
+        self.assertIn(group2, user_groups_qs)
+        self.assertIn(group3, user_groups_qs)
+        self.assertNotIn(group1, user_groups_qs)
+        # Defaults to the first group the user is a member of
+        self.assertEqual(p_form_user.initial.get("owner_group"), user_member.groups.first())
+
+        # 2. Normal user SeriesForm
+        s_form_user = SeriesForm(user=user_member)
+        s_user_groups_qs = s_form_user.fields["owner_group"].queryset
+        self.assertEqual(s_user_groups_qs.count(), 2)
+        self.assertIn(group2, s_user_groups_qs)
+        self.assertIn(group3, s_user_groups_qs)
+        self.assertNotIn(group1, s_user_groups_qs)
+        self.assertEqual(s_form_user.initial.get("owner_group"), user_member.groups.first())
+
+        # 3. Admin user ProgramForm & SeriesForm (shows all groups)
+        p_form_admin = ProgramForm(user=admin_user)
+        self.assertGreaterEqual(p_form_admin.fields["owner_group"].queryset.count(), 3)
+        self.assertIn(group1, p_form_admin.fields["owner_group"].queryset)
+
+        s_form_admin = SeriesForm(user=admin_user)
+        self.assertGreaterEqual(s_form_admin.fields["owner_group"].queryset.count(), 3)
+        self.assertIn(group1, s_form_admin.fields["owner_group"].queryset)
+
     # 15. User Group Ownership, Edit Permissions, and Draft Reset Tests
     def test_owner_group_permissions_and_edit_draft_reset(self):
         sports_group = Group.objects.create(name="Sports Production Group")
