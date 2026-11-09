@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,6 +27,27 @@ SECRET_KEY = "django-insecure-y-_po88c&t+(c)=dchnm6+_fu$!hzw$l_br^t+f-dud6m+bww&
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
+
+# Reverse Proxy & SSL Configuration
+# Allows running behind reverse proxies (Nginx, HAProxy, Traefik, Apache)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+
+# CSRF Trusted Origins configurable via environment variable or settings file
+# Set PROXY_URL or CSRF_TRUSTED_ORIGINS to allow your proxy origin(s), e.g.:
+# CSRF_TRUSTED_ORIGINS="https://wcgtvmetadata.westmancom.com,http://nsdev2.westmancom.com:8080"
+# PROXY_URL="https://wcgtvmetadata.westmancom.com"
+raw_csrf = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+raw_proxy = os.environ.get("PROXY_URL", "")
+
+configured_origins = []
+if raw_csrf:
+    configured_origins.extend([o.strip() for o in raw_csrf.replace(",", " ").split() if o.strip()])
+if raw_proxy:
+    configured_origins.extend([o.strip() for o in raw_proxy.replace(",", " ").split() if o.strip()])
+
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(configured_origins))
 
 
 # Application definition
@@ -99,8 +121,6 @@ WSGI_APPLICATION = "wcgtv_project.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
-
-import os
 
 DATABASES = {
     "default": {
