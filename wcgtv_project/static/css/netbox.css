@@ -220,4 +220,91 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* ==============================================================================
+   Mobile & Responsive Adaptations (< 768px)
+   ============================================================================== */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1040;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-backdrop.show {
+  display: block;
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  #wrapper {
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  #sidebar-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1050;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
+    max-width: 80vw;
+  }
+
+  #sidebar-wrapper.show {
+    transform: translateX(0);
+  }
+
+  #content-wrapper {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .nb-navbar {
+    padding: 0.5rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .nb-search-box {
+    width: 100%;
+    order: 3;
+    margin-top: 0.5rem;
+  }
+
+  .nb-content {
+    padding: 1rem 0.75rem;
+  }
+
+  .nb-page-title {
+    font-size: 1.15rem;
+  }
+
+  /* Responsive buttons & controls */
+  .btn-group, .d-flex.gap-2 {
+    flex-wrap: wrap;
+  }
+
+  /* Touch-friendly table scrolling */
+  .table-responsive {
+    -webkit-overflow-scrolling: touch;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  .nb-card {
+    margin-bottom: 1rem;
+  }
 }

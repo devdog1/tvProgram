@@ -14,6 +14,9 @@
 </head>
 <body>
   {% if user.is_authenticated %}
+  <!-- Mobile Backdrop Overlay -->
+  <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
   <div class="d-flex" id="wrapper">
     <!-- NetBox Sidebar (Visible only to authenticated users) -->
     <div id="sidebar-wrapper">
@@ -131,22 +134,30 @@
     <div id="content-wrapper">
       <!-- Top Navigation / Search bar -->
       <nav class="nb-navbar">
+        <div class="d-flex align-items-center gap-2">
+          <!-- Mobile Hamburger Toggle Button -->
+          <button class="btn btn-sm btn-outline-secondary d-md-none" id="sidebarToggle" type="button" aria-label="Toggle navigation">
+            <i class="bi bi-list fs-5"></i>
+          </button>
+          <span class="fw-bold d-md-none text-primary">WCGtv</span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <span class="badge bg-secondary"><i class="bi bi-person-fill"></i> {{ user.username }}</span>
+          <form method="post" action="{% url 'logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.8rem;">
+              <i class="bi bi-box-arrow-right"></i> <span class="d-none d-sm-inline">Logout</span>
+            </button>
+          </form>
+        </div>
+
         <form class="nb-search-box d-flex" method="get" action="{% url 'program_list' %}">
           <div class="input-group input-group-sm">
             <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
             <input type="text" name="q" class="form-control border-start-0" placeholder="Search programs, series, files..." value="{{ request.GET.q }}">
           </div>
         </form>
-
-        <div class="d-flex align-items-center gap-3">
-          <span class="badge bg-secondary"><i class="bi bi-person-fill"></i> {{ user.username }}</span>
-          <form method="post" action="{% url 'logout' %}" class="d-inline">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.8rem;">
-              <i class="bi bi-box-arrow-right"></i> Logout
-            </button>
-          </form>
-        </div>
       </nav>
 
       <!-- Main container -->
@@ -191,6 +202,50 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+  <script>
+    // Mobile Sidebar Toggle and Drawer Handling
+    document.addEventListener("DOMContentLoaded", function () {
+      const toggleBtn = document.getElementById("sidebarToggle");
+      const sidebar = document.getElementById("sidebar-wrapper");
+      const backdrop = document.getElementById("sidebar-backdrop");
+
+      function openSidebar() {
+        if (sidebar) sidebar.classList.add("show");
+        if (backdrop) backdrop.classList.add("show");
+      }
+
+      function closeSidebar() {
+        if (sidebar) sidebar.classList.remove("show");
+        if (backdrop) backdrop.classList.remove("show");
+      }
+
+      if (toggleBtn) {
+        toggleBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (sidebar && sidebar.classList.contains("show")) {
+            closeSidebar();
+          } else {
+            openSidebar();
+          }
+        });
+      }
+
+      if (backdrop) {
+        backdrop.addEventListener("click", closeSidebar);
+      }
+
+      // Close drawer on link click in mobile view
+      if (sidebar) {
+        sidebar.querySelectorAll(".nav-link").forEach(function (link) {
+          link.addEventListener("click", function () {
+            if (window.innerWidth < 768) {
+              closeSidebar();
+            }
+          });
+        });
+      }
+    });
+  </script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>
